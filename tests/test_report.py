@@ -1042,3 +1042,119 @@ def test_no_undelivered_language_when_all_delivered_and_blocked(tmp_path, monkey
     assert "UNDELIVERED" not in md
     assert "GATE DOES NOT PASS" not in md
     assert "never delivered" not in md
+
+
+# --------------------------------------------------------------------------
+# Tier comparison section (eval/tier_compare.py output)
+# --------------------------------------------------------------------------
+
+
+def _tier_compare_fixture():
+    """Minimal synthetic tier_compare.json, shaped like eval/tier_compare.py's
+    run() output. Includes one "other_ahead" verdict (tier1 beating tier4 on
+    the "easy" category) so the renderer's non-suppression of a non-tier-4
+    win is pinned, not just tier4_ahead/inconclusive cases."""
+    cell4_overall = {"n_repeats": 1, "per_repeat": [0.9], "median": 0.9, "min": 0.9, "max": 0.9, "n_success_total": 9, "n_trials_total": 10, "wilson_lo": 0.6, "wilson_hi": 0.98}
+    cell4_easy = {"n_repeats": 1, "per_repeat": [0.2], "median": 0.2, "min": 0.2, "max": 0.2, "n_success_total": 1, "n_trials_total": 5, "wilson_lo": 0.0, "wilson_hi": 0.5}
+    cell1_overall = {"n_repeats": 1, "per_repeat": [0.5], "median": 0.5, "min": 0.5, "max": 0.5, "n_success_total": 5, "n_trials_total": 10, "wilson_lo": 0.2, "wilson_hi": 0.8}
+    cell1_easy = {"n_repeats": 1, "per_repeat": [0.9], "median": 0.9, "min": 0.9, "max": 0.9, "n_success_total": 5, "n_trials_total": 5, "wilson_lo": 0.6, "wilson_hi": 1.0}
+    abstention4 = {"n_repeats": 1, "per_repeat": [0.8], "median": 0.8, "min": 0.8, "max": 0.8, "n_success_total": 8, "n_trials_total": 10, "wilson_lo": 0.5, "wilson_hi": 0.95}
+    abstention1 = {"n_repeats": 1, "per_repeat": [0.3], "median": 0.3, "min": 0.3, "max": 0.3, "n_success_total": 3, "n_trials_total": 10, "wilson_lo": 0.1, "wilson_hi": 0.6}
+
+    return {
+        "schema_version": 1,
+        "config": {
+            "root": "eval/results/tier_compare",
+            "tiers": [1, 4],
+            "repeats_found": {"1": [0], "4": [0]},
+            "prompt_variant": "3a-clause-a-only",
+            "abstention_prompt_variant": "abstention-v1",
+            "rubric_version": 3,
+            "model": "openai/gpt-oss-120b",
+            "judge_temperature": 0.0,
+            "n_judge_calls_made": 20,
+            "n_cache_hits": 0,
+        },
+        "rate_card": {"provider": "Groq (openai/gpt-oss-120b)", "used": True},
+        "primary": {
+            "4": {"overall": cell4_overall, "easy": cell4_easy},
+            "1": {"overall": cell1_overall, "easy": cell1_easy},
+        },
+        "abstention": {"4": abstention4, "1": abstention1},
+        "n_crashed": {"1": 0, "4": 0},
+        "comparisons": {
+            "primary": {
+                "1": {
+                    "overall": {"verdict": "tier4_ahead", "detail": "tier4 range [0.900, 0.900] is entirely above the other tier's range [0.500, 0.500]"},
+                    "easy": {"verdict": "other_ahead", "detail": "the other tier's range [0.900, 0.900] is entirely above tier4's range [0.200, 0.200]"},
+                },
+            },
+            "abstention": {
+                "1": {"verdict": "tier4_ahead", "detail": "tier4 range [0.800, 0.800] is entirely above the other tier's range [0.300, 0.300]"},
+            },
+        },
+        "efficiency": {
+            "rate_card": {"provider": "Groq (openai/gpt-oss-120b)", "used": True},
+            "tiers": {
+                "1": {
+                    "wall_clock_seconds": {"mean": 1.0, "p50": 1.0, "p95": 1.0, "n": 1},
+                    "estimated_cost_usd": {"mean": 0.001, "p50": 0.001, "p95": 0.001, "n": 1},
+                    "llm_call_count": {"mean": 1.0, "p50": 1.0, "p95": 1.0, "n": 1},
+                    "total_cost_usd": 0.001,
+                },
+                "4": {
+                    "wall_clock_seconds": {"mean": 5.0, "p50": 5.0, "p95": 5.0, "n": 1},
+                    "estimated_cost_usd": {"mean": 0.01, "p50": 0.01, "p95": 0.01, "n": 1},
+                    "llm_call_count": {"mean": 4.0, "p50": 4.0, "p95": 4.0, "n": 1},
+                    "total_cost_usd": 0.01,
+                },
+            },
+        },
+        "tier4_only": {
+            "task_success_status_only": {"n_true": 9, "n": 10, "rate": 0.9, "tiers_1_3": "n/a (no TaskState)"},
+        },
+        "per_answer": [],
+        "summary": "tier1 vs tier4 [overall]: tier4_ahead -- tier4 range [0.900, 0.900] is entirely above the other tier's range [0.500, 0.500]. tier1 vs tier4 [easy]: other_ahead -- the other tier's range [0.900, 0.900] is entirely above tier4's range [0.200, 0.200]. tier1 vs tier4 [abstention]: tier4_ahead -- tier4 range [0.800, 0.800] is entirely above the other tier's range [0.300, 0.300]",
+        "inconclusive_everywhere": False,
+    }
+
+
+def test_tier_comparison_missing_file_not_computed(tmp_path, monkeypatch):
+    raw_dir, out_dir, tickets_by_id = _setup(tmp_path, monkeypatch)
+    safety = report_mod.run_safety_gate(adversarial_dir=_isolated_adv_dir(tmp_path))
+    empty_results_dir = tmp_path / "empty_results_tc"
+    empty_results_dir.mkdir()
+
+    report = report_mod.build_report(raw_dir, tickets_by_id, safety=safety, results_dir=empty_results_dir)
+    md = report_mod.render_markdown(report)
+
+    assert report["tier_comparison"] is None
+    assert "NOT COMPUTED (tier_compare.json not found" in md
+
+
+def test_tier_comparison_fixture_renders_all_subsections(tmp_path, monkeypatch):
+    raw_dir, out_dir, tickets_by_id = _setup(tmp_path, monkeypatch)
+    safety = report_mod.run_safety_gate(adversarial_dir=_isolated_adv_dir(tmp_path))
+    results_dir = tmp_path / "results_tc"
+    results_dir.mkdir()
+    _write_json(results_dir, "tier_compare.json", _tier_compare_fixture())
+
+    report = report_mod.build_report(raw_dir, tickets_by_id, safety=safety, results_dir=results_dir)
+    md = report_mod.render_markdown(report)
+
+    tier_section = md.split("## Tier Comparison")[1]
+
+    # Primary table present with the median [min-max] cell format.
+    assert "### Primary (semantic_match, median [min-max])" in tier_section
+    assert "90.0% [90.0-90.0]" in tier_section
+
+    # A non-tier-4 win must never be suppressed from the decision-rule verdicts.
+    assert "### Decision-rule verdicts vs tier4" in tier_section
+    assert "other_ahead" in tier_section
+
+    # Abstention sub-table present.
+    assert "### Abstention (10 ambiguous tickets, median [min-max])" in tier_section
+
+    # Tier-4-only section carries the literal no-TaskState marker for tiers 1-3.
+    assert "### Tier-4-only metrics" in tier_section
+    assert "n/a (no TaskState)" in tier_section

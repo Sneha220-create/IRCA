@@ -577,3 +577,158 @@ def test_v2_rubric_and_prompt_still_reachable():
     )
     assert llm_judge.RUBRIC_DEFINITION_V2 in prompt
     assert "semantically_correct" in prompt
+
+
+# ---------------------------------------------------------------------------
+# judge_semantic_match_once / judge_abstention_once -- error-path coverage
+#
+# These wrappers are always monkeypatched one level up in tier_compare's own
+# tests, so their defensive parsing (mirroring _extract_verdict's style) is
+# never otherwise exercised. Covered here directly, one layer below, by
+# monkeypatching call_llm_with_tools.
+# ---------------------------------------------------------------------------
+
+
+def _fake_semantic_match_response(semantic_match: bool, reasoning: str = "because reasons"):
+    args = json.dumps({"semantic_match": semantic_match, "reasoning": reasoning})
+    tool_call = SimpleNamespace(function=SimpleNamespace(arguments=args))
+    message = SimpleNamespace(tool_calls=[tool_call])
+    choice = SimpleNamespace(message=message)
+    return SimpleNamespace(choices=[choice])
+
+
+def _fake_malformed_args_response():
+    tool_call = SimpleNamespace(function=SimpleNamespace(arguments="{not valid json"))
+    message = SimpleNamespace(tool_calls=[tool_call])
+    choice = SimpleNamespace(message=message)
+    return SimpleNamespace(choices=[choice])
+
+
+def _fake_missing_key_response(payload):
+    args = json.dumps(payload)
+    tool_call = SimpleNamespace(function=SimpleNamespace(arguments=args))
+    message = SimpleNamespace(tool_calls=[tool_call])
+    choice = SimpleNamespace(message=message)
+    return SimpleNamespace(choices=[choice])
+
+
+def test_judge_semantic_match_once_well_formed(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: _fake_semantic_match_response(True)
+    )
+    verdict, reasoning, error = llm_judge.judge_semantic_match_once(
+        "ticket text", "easy", "candidate answer", "gold_slug"
+    )
+    assert verdict is True
+    assert reasoning == "because reasons"
+    assert error is None
+
+
+def test_judge_semantic_match_once_error_dict(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: {"error": "rate limited"}
+    )
+    verdict, reasoning, error = llm_judge.judge_semantic_match_once(
+        "ticket text", "easy", "candidate answer", "gold_slug"
+    )
+    assert verdict is None
+    assert reasoning is None
+    assert error == "rate limited"
+
+
+def test_judge_semantic_match_once_no_tool_calls(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: _fake_no_tool_call_response()
+    )
+    verdict, reasoning, error = llm_judge.judge_semantic_match_once(
+        "ticket text", "easy", "candidate answer", "gold_slug"
+    )
+    assert verdict is None
+    assert reasoning is None
+    assert error is not None
+
+
+def test_judge_semantic_match_once_malformed_arguments(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: _fake_malformed_args_response()
+    )
+    verdict, reasoning, error = llm_judge.judge_semantic_match_once(
+        "ticket text", "easy", "candidate answer", "gold_slug"
+    )
+    assert verdict is None
+    assert reasoning is None
+    assert error is not None
+
+
+def test_judge_semantic_match_once_missing_expected_key(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge,
+        "call_llm_with_tools",
+        lambda *a, **k: _fake_missing_key_response({"reasoning": "no verdict field here"}),
+    )
+    verdict, reasoning, error = llm_judge.judge_semantic_match_once(
+        "ticket text", "easy", "candidate answer", "gold_slug"
+    )
+    assert verdict is None
+    assert reasoning is None
+    assert error is not None
+
+
+def _fake_abstention_response(abstained: bool, reasoning: str = "because reasons"):
+    args = json.dumps({"abstained": abstained, "reasoning": reasoning})
+    tool_call = SimpleNamespace(function=SimpleNamespace(arguments=args))
+    message = SimpleNamespace(tool_calls=[tool_call])
+    choice = SimpleNamespace(message=message)
+    return SimpleNamespace(choices=[choice])
+
+
+def test_judge_abstention_once_well_formed(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: _fake_abstention_response(True)
+    )
+    verdict, reasoning, error = llm_judge.judge_abstention_once("ticket text", "candidate answer")
+    assert verdict is True
+    assert reasoning == "because reasons"
+    assert error is None
+
+
+def test_judge_abstention_once_error_dict(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: {"error": "timeout"}
+    )
+    verdict, reasoning, error = llm_judge.judge_abstention_once("ticket text", "candidate answer")
+    assert verdict is None
+    assert reasoning is None
+    assert error == "timeout"
+
+
+def test_judge_abstention_once_no_tool_calls(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: _fake_no_tool_call_response()
+    )
+    verdict, reasoning, error = llm_judge.judge_abstention_once("ticket text", "candidate answer")
+    assert verdict is None
+    assert reasoning is None
+    assert error is not None
+
+
+def test_judge_abstention_once_malformed_arguments(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge, "call_llm_with_tools", lambda *a, **k: _fake_malformed_args_response()
+    )
+    verdict, reasoning, error = llm_judge.judge_abstention_once("ticket text", "candidate answer")
+    assert verdict is None
+    assert reasoning is None
+    assert error is not None
+
+
+def test_judge_abstention_once_missing_expected_key(monkeypatch):
+    monkeypatch.setattr(
+        llm_judge,
+        "call_llm_with_tools",
+        lambda *a, **k: _fake_missing_key_response({"reasoning": "no verdict field here"}),
+    )
+    verdict, reasoning, error = llm_judge.judge_abstention_once("ticket text", "candidate answer")
+    assert verdict is None
+    assert reasoning is None
+    assert error is not None

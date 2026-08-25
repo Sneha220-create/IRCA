@@ -36,11 +36,16 @@ def test_happy_path_writes_expected_file(tmp_path, monkeypatch):
     assert out_path.exists()
     result = json.loads(out_path.read_text(encoding="utf-8"))
 
-    assert result["schema_version"] == 2
+    # schema_version bumped 2 -> 3 alongside the --tier/--repeat addition.
+    assert result["schema_version"] == 3
     assert result["ticket_id"] == "T001"
+    assert result["tier"] == 4
+    assert result["repeat"] == 0
     assert set(result.keys()) == {
         "schema_version",
         "ticket_id",
+        "tier",
+        "repeat",
         "run",
         "ticket",
         "state",

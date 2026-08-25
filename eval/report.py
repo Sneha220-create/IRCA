@@ -663,6 +663,7 @@ def build_report(
     judge_validation_v1 = load_judge_agreement(results_dir, filename="judge_agreement_report.v1.json")
     hypothesis_semantic_v1 = load_optional_json(results_dir / "hypothesis_semantic.v1.json")
     ragas_diagnostic = build_ragas_diagnostic(results_dir)
+    tier_comparison = load_optional_json(results_dir / "tier_compare.json")
 
     if isinstance(hypothesis_semantic, dict) and "n_correct" in hypothesis_semantic:
         semantic_note = (
@@ -865,6 +866,7 @@ def build_report(
         "judge_validation_v1": judge_validation_v1,
         "hypothesis_semantic_v1_summary": (hypothesis_semantic_v1["summary"] if hypothesis_semantic_v1 else None),
         "ragas_diagnostic": ragas_diagnostic,
+        "tier_comparison": tier_comparison,
     }
     return report
 
@@ -1062,6 +1064,77 @@ def render_markdown(report: dict) -> str:
         sl_str = "n/a" if sl["rate"] is None else f"{sl['n_success']}/{c['n']} ({sl['rate'] * 100:.1f}%)"
         lines.append(f"| {cat} | {c['n']} | {so_str} | {sl_str} |")
     lines.append("")
+
+    tc = report.get("tier_comparison")
+    lines.append("## Tier Comparison (1 -> 4)")
+    if not tc:
+        lines.append("NOT COMPUTED (tier_compare.json not found; run: python -m eval.tier_compare --live)")
+        lines.append("")
+    else:
+        lines.append(tc.get("summary", ""))
+        lines.append("")
+
+        def _cell_str(cell: dict | None) -> str:
+            if not cell:
+                return "n/a"
+            med = cell.get("median")
+            mn = cell.get("min")
+            mx = cell.get("max")
+            if med is None:
+                return "n/a"
+            return f"{med * 100:.1f}% [{mn * 100:.1f}-{mx * 100:.1f}]"
+
+        # Local import (not module-level): eval.tier_compare imports eval.report
+        # (for select_rate_card), so importing it at module level here would be
+        # circular. Import tier_compare.CATEGORIES directly rather than relying
+        # on CATEGORIES[:4] positionally matching tier_compare's own list.
+        from eval import tier_compare
+
+        primary = tc.get("primary", {})
+        col_keys = ["overall"] + tier_compare.CATEGORIES
+        lines.append("### Primary (semantic_match, median [min-max])")
+        lines.append("| tier | " + " | ".join(col_keys) + " |")
+        lines.append("|---|" + "---|" * len(col_keys))
+        for tier in sorted(primary.keys(), key=lambda t: int(t)):
+            cells = primary[tier]
+            row = [_cell_str(cells.get(k)) for k in col_keys]
+            lines.append(f"| tier{tier} | " + " | ".join(row) + " |")
+        lines.append("")
+
+        comparisons = tc.get("comparisons", {})
+        lines.append("### Decision-rule verdicts vs tier4")
+        for tier, cells in comparisons.get("primary", {}).items():
+            for key, verdict_entry in cells.items():
+                lines.append(f"- tier{tier} vs tier4 [{key}]: **{verdict_entry['verdict']}** -- {verdict_entry['detail']}")
+        if comparisons.get("abstention"):
+            for tier, verdict_entry in comparisons["abstention"].items():
+                lines.append(f"- tier{tier} vs tier4 [abstention]: **{verdict_entry['verdict']}** -- {verdict_entry['detail']}")
+        lines.append("")
+
+        lines.append("### Abstention (10 ambiguous tickets, median [min-max])")
+        abstention = tc.get("abstention", {})
+        for tier in sorted(abstention.keys(), key=lambda t: int(t)):
+            lines.append(f"- tier{tier}: {_cell_str(abstention[tier])}")
+        lines.append("")
+
+        lines.append("### Efficiency / cost per tier")
+        eff = tc.get("efficiency", {})
+        lines.append(f"(rate card: {eff.get('rate_card', {}).get('provider')})")
+        for tier, block in eff.get("tiers", {}).items():
+            wc = block.get("wall_clock_seconds", {})
+            cost = block.get("estimated_cost_usd", {})
+            calls = block.get("llm_call_count", {})
+            lines.append(
+                f"- tier{tier}: wall_clock mean={wc.get('mean')} p50={wc.get('p50')} p95={wc.get('p95')}; "
+                f"cost mean={cost.get('mean')} p50={cost.get('p50')} p95={cost.get('p95')} "
+                f"total={block.get('total_cost_usd')}; llm_call_count mean={calls.get('mean')}"
+            )
+        lines.append("")
+
+        lines.append("### Tier-4-only metrics")
+        for name, entry in tc.get("tier4_only", {}).items():
+            lines.append(f"- {name}: tier4={entry} | tiers_1_3: {entry.get('tiers_1_3')}")
+        lines.append("")
 
     lines.append("## Known Issues (documented)")
     if report["known_issues"]:

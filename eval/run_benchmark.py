@@ -27,6 +27,8 @@ Usage (from repo root, using the repo's venv):
     venv/bin/python -m eval.run_benchmark --live --tickets T001,T009
     venv/bin/python -m eval.run_benchmark --live --out eval/results/raw
     venv/bin/python -m eval.run_benchmark --live --no-archive
+    venv/bin/python -m eval.run_benchmark --live --tier 2
+    venv/bin/python -m eval.run_benchmark --live --tier 3 --repeat 1
 
 Flags:
     --live         REQUIRED. Without it, the script refuses to run (see
@@ -36,8 +38,18 @@ Flags:
                    Mutually exclusive with --tickets.
     --tickets T    Comma-separated list of ticket ids to run, e.g.
                    "T001,T009". Mutually exclusive with --subset.
+    --tier N       Which capability tier to run: 1 = plain LLM (no tools, no
+                   retrieval), 2 = LLM + RAG only, 3 = LLM + tools, single
+                   round-trip, no replanning, 4 = the full agent loop.
+                   Default: 4. All four tiers run over the SAME default
+                   ticket selection (63 tickets, adversarial excluded).
+    --repeat N     Repeat index recorded in each result file, for variance
+                   analysis across repeated sweeps; does not itself change
+                   what is run. Default: 0.
     --out DIR      Output directory for the per-ticket result files.
-                   Default: eval/results/raw. Created if missing.
+                   Default: eval/results/raw for --tier 4, eval/results/tierN
+                   for --tier 1/2/3. An explicit --out always wins over this
+                   tier-based default. Created if missing.
     --no-archive   Skip archiving pre-existing *.json files in the out dir
                    before this sweep. Off by default -- archiving is the
                    safe default; this is only for cheap iteration.
@@ -71,12 +83,25 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import agent.approval as approval
+import agent.baselines as baselines
 import agent.orchestrator as orchestrator
+import agent.single_pass as single_pass
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TICKETS_PATH = REPO_ROOT / "data" / "tickets.json"
 DEFAULT_OUT_DIR = REPO_ROOT / "eval" / "results" / "raw"
 ARCHIVE_ROOT = REPO_ROOT / "eval" / "results" / "runs"
+
+# Per-tier module owning the call_llm_with_tools binding that _usage_shim
+# must patch -- see _usage_shim's docstring for why the patch target has to
+# be the module that did the `from agent.llm import call_llm_with_tools`,
+# not agent.llm itself.
+_TIER_USAGE_MODULE = {
+    1: baselines,
+    2: baselines,
+    3: single_pass,
+    4: orchestrator,
+}
 
 TICKET_DENORM_FIELDS = [
     "category",
@@ -123,17 +148,22 @@ class _UsageTracker:
 
 
 @contextlib.contextmanager
-def _usage_shim():
-    """Monkeypatch agent.orchestrator.call_llm_with_tools with a wrapper
-    that delegates to the real function and tracks usage as a side effect.
+def _usage_shim(module=orchestrator):
+    """Monkeypatch <module>.call_llm_with_tools with a wrapper that
+    delegates to the real function and tracks usage as a side effect.
 
-    orchestrator.py does `from agent.llm import call_llm_with_tools`, which
-    binds the name directly into agent.orchestrator's module namespace --
-    patching agent.llm.call_llm_with_tools would NOT be observed by the
-    orchestrator's already-bound reference, so we must patch
-    agent.orchestrator.call_llm_with_tools itself. There is only this one
-    import path in the current orchestrator; if a second call site is added
-    that imports the symbol independently, it must be patched here too.
+    Every tier module does `from agent.llm import call_llm_with_tools`,
+    which binds the name directly into THAT module's own namespace --
+    patching agent.llm.call_llm_with_tools would NOT be observed by any of
+    their already-bound references, so we must patch each tier module's own
+    call_llm_with_tools attribute. That is why this takes a `module`
+    parameter rather than hardcoding agent.orchestrator: tier 4 (the full
+    agent loop) binds the name in agent.orchestrator, tiers 1 and 2 (the
+    baselines) bind it in agent.baselines, and tier 3 (the single-pass
+    baseline) binds it in agent.single_pass. The default argument keeps the
+    tier-4 call site unchanged. There is only one import path per module
+    today; if a second call site is added that imports the symbol
+    independently, it must be patched here too.
 
     The wrapper is defensive: the real function returns an {"error": ...}
     dict on failure (no .usage to read), and even a successful response may
@@ -141,7 +171,7 @@ def _usage_shim():
     as a call with 0 tokens, never raised into the agent loop.
     """
     tracker = _UsageTracker()
-    real_fn = orchestrator.call_llm_with_tools
+    real_fn = module.call_llm_with_tools
 
     def wrapper(*args, **kwargs):
         response = real_fn(*args, **kwargs)
@@ -153,11 +183,11 @@ def _usage_shim():
             tracker.per_call.append({"in": 0, "out": 0})
         return response
 
-    orchestrator.call_llm_with_tools = wrapper
+    module.call_llm_with_tools = wrapper
     try:
         yield tracker
     finally:
-        orchestrator.call_llm_with_tools = real_fn
+        module.call_llm_with_tools = real_fn
 
 
 def _load_tickets() -> list[dict]:
@@ -203,67 +233,7 @@ def _denormalized_ticket(ticket: dict) -> dict:
     return {field: ticket.get(field) for field in TICKET_DENORM_FIELDS}
 
 
-def run_one(ticket: dict, out_dir: Path) -> dict:
-    """Run a single ticket, write its result file, and return a small
-    summary dict used for the stderr progress line."""
-    ticket_id = ticket["id"]
-    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-    state_dump = None
-    pending_action_dump = None
-    runner_error = None
-    start = time.perf_counter()
-    with _usage_shim() as tracker:
-        try:
-            state = orchestrator.run_agent_loop(ticket_id)
-            state_dump = state.model_dump()
-            # Session 10 Step 2 follow-up: the injection-leak gate
-            # (eval/injection_gate.py's no_secret_leak check) needs the
-            # human-visible proposed_fix text, since it -- not the raw log
-            # observation -- is the realistic surface a leaked canary would
-            # land on. state.model_dump() only carries pending_action_id (a
-            # string), not the PendingAction itself, so it is looked up here,
-            # in the same process, from agent.approval's in-memory store
-            # (still available immediately after run_agent_loop returns) and
-            # persisted separately below.
-            if state.pending_action_id is not None:
-                pending_action = approval.get_pending_action(state.pending_action_id)
-                if pending_action is not None:
-                    pending_action_dump = pending_action.model_dump(
-                        include={
-                            "ticket_id",
-                            "action_id",
-                            "proposed_root_cause",
-                            "proposed_fix",
-                            "citation_doc_id",
-                        }
-                    )
-        except Exception as exc:
-            runner_error = {
-                "type": type(exc).__name__,
-                "message": str(exc),
-                "traceback": traceback.format_exc(),
-            }
-        usage = tracker.as_dict()
-    wall_clock_seconds = round(time.perf_counter() - start, 3)
-
-    result = {
-        "schema_version": 2,
-        "ticket_id": ticket_id,
-        "run": {
-            "started_at": started_at,
-            "wall_clock_seconds": wall_clock_seconds,
-            "runner_error": runner_error,
-        },
-        "ticket": _denormalized_ticket(ticket),
-        "state": state_dump,
-        # None when no write was queued this run -- distinct from a
-        # present-but-clean pending action; see eval/injection_gate.py's
-        # no_secret_leak check, which must not conflate the two.
-        "pending_action": pending_action_dump,
-        "usage": usage,
-    }
-
+def _persist_result(result: dict, ticket_id: str, out_dir: Path) -> None:
     out_path = out_dir / f"{ticket_id}.json"
     tmp_path = out_dir / f".{ticket_id}.json.tmp"
     try:
@@ -277,18 +247,139 @@ def run_one(ticket: dict, out_dir: Path) -> dict:
             tmp_path.unlink()
         raise
 
-    if runner_error is not None:
-        final_status = "crashed"
-    elif state_dump is not None:
-        final_status = state_dump.get("status")
+
+_TIER_ENTRY_POINT = {
+    1: lambda tid: baselines.run_plain_llm(tid),
+    2: lambda tid: baselines.run_rag_only(tid),
+    3: lambda tid: single_pass.run_single_pass(tid),
+}
+
+
+def _default_out_dir(tier: int) -> Path:
+    """Resolve the default --out directory for a given tier, when --out was
+    not passed explicitly. Factored out so tests can assert on the resolved
+    path without ever running a sweep into the repo's eval/results/ tree."""
+    if tier == 4:
+        return DEFAULT_OUT_DIR
+    return REPO_ROOT / "eval" / "results" / f"tier{tier}"
+
+
+def run_one(ticket: dict, out_dir: Path, tier: int = 4, repeat: int = 0) -> dict:
+    """Run a single ticket through the given capability tier, write its
+    result file, and return a small summary dict used for the stderr
+    progress line."""
+    ticket_id = ticket["id"]
+    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    runner_error = None
+    start = time.perf_counter()
+
+    if tier == 4:
+        state_dump = None
+        pending_action_dump = None
+        with _usage_shim(orchestrator) as tracker:
+            try:
+                state = orchestrator.run_agent_loop(ticket_id)
+                state_dump = state.model_dump()
+                # Session 10 Step 2 follow-up: the injection-leak gate
+                # (eval/injection_gate.py's no_secret_leak check) needs the
+                # human-visible proposed_fix text, since it -- not the raw log
+                # observation -- is the realistic surface a leaked canary would
+                # land on. state.model_dump() only carries pending_action_id (a
+                # string), not the PendingAction itself, so it is looked up here,
+                # in the same process, from agent.approval's in-memory store
+                # (still available immediately after run_agent_loop returns) and
+                # persisted separately below.
+                if state.pending_action_id is not None:
+                    pending_action = approval.get_pending_action(state.pending_action_id)
+                    if pending_action is not None:
+                        pending_action_dump = pending_action.model_dump(
+                            include={
+                                "ticket_id",
+                                "action_id",
+                                "proposed_root_cause",
+                                "proposed_fix",
+                                "citation_doc_id",
+                            }
+                        )
+            except Exception as exc:
+                runner_error = {
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                    "traceback": traceback.format_exc(),
+                }
+            usage = tracker.as_dict()
+        wall_clock_seconds = round(time.perf_counter() - start, 3)
+
+        result = {
+            "schema_version": 3,
+            "tier": tier,
+            "repeat": repeat,
+            "ticket_id": ticket_id,
+            "run": {
+                "started_at": started_at,
+                "wall_clock_seconds": wall_clock_seconds,
+                "runner_error": runner_error,
+            },
+            "ticket": _denormalized_ticket(ticket),
+            "state": state_dump,
+            # None when no write was queued this run -- distinct from a
+            # present-but-clean pending action; see eval/injection_gate.py's
+            # no_secret_leak check, which must not conflate the two.
+            "pending_action": pending_action_dump,
+            "usage": usage,
+        }
+
+        if runner_error is not None:
+            final_status = "crashed"
+        elif state_dump is not None:
+            final_status = state_dump.get("status")
+        else:
+            final_status = "crashed"
     else:
-        final_status = "crashed"
+        # Tiers 1-3: no TaskState, no pending-action concept. Absent
+        # capabilities are visibly absent -- "state" and "pending_action"
+        # are not present in the result dict at all (not even as None). The
+        # baseline's own return dict is stored whole under "baseline".
+        baseline_dump = None
+        usage_module = _TIER_USAGE_MODULE[tier]
+        with _usage_shim(usage_module) as tracker:
+            try:
+                baseline_dump = _TIER_ENTRY_POINT[tier](ticket_id)
+            except Exception as exc:
+                runner_error = {
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                    "traceback": traceback.format_exc(),
+                }
+            usage = tracker.as_dict()
+        wall_clock_seconds = round(time.perf_counter() - start, 3)
+
+        result = {
+            "schema_version": 3,
+            "tier": tier,
+            "repeat": repeat,
+            "ticket_id": ticket_id,
+            "run": {
+                "started_at": started_at,
+                "wall_clock_seconds": wall_clock_seconds,
+                "runner_error": runner_error,
+            },
+            "ticket": _denormalized_ticket(ticket),
+            "baseline": baseline_dump,
+            "usage": usage,
+        }
+
+        final_status = "crashed" if runner_error is not None else "answered"
+
+    _persist_result(result, ticket_id, out_dir)
 
     return {
         "ticket_id": ticket_id,
         "crashed": runner_error is not None,
         "status": final_status,
         "wall_clock_seconds": wall_clock_seconds,
+        "tier": tier,
     }
 
 
@@ -405,10 +496,36 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--tier",
+        type=int,
+        choices=[1, 2, 3, 4],
+        default=4,
+        help=(
+            "Capability tier to run: 1 = plain LLM, 2 = LLM + RAG only, "
+            "3 = LLM + tools (single round-trip), 4 = full agent loop "
+            "(default). All tiers use the same default ticket selection."
+        ),
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=0,
+        help=(
+            "Repeat index recorded in each result file, for variance "
+            "analysis across repeated sweeps; does not itself change what "
+            "is run."
+        ),
+    )
+    parser.add_argument(
         "--out",
         type=str,
-        default=str(DEFAULT_OUT_DIR),
-        help="Output directory for per-ticket result files (default: eval/results/raw).",
+        default=None,
+        help=(
+            "Output directory for per-ticket result files. Default: "
+            "eval/results/raw for --tier 4, eval/results/tierN for "
+            "--tier 1/2/3. An explicit --out always wins over this "
+            "tier-based default."
+        ),
     )
     parser.add_argument(
         "--no-archive",
@@ -447,7 +564,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
-    out_dir = Path(args.out)
+    out_dir = Path(args.out) if args.out is not None else _default_out_dir(args.tier)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.no_archive:
@@ -462,13 +579,13 @@ def main(argv: list[str] | None = None) -> int:
     overall_start = time.perf_counter()
 
     for i, ticket in enumerate(selected, start=1):
-        summary = run_one(ticket, out_dir)
+        summary = run_one(ticket, out_dir, tier=args.tier, repeat=args.repeat)
         status = summary["status"]
         crashed_note = " (crashed)" if summary["crashed"] else ""
         if summary["crashed"]:
             n_crashed += 1
         print(
-            f"[{i}/{total}] {summary['ticket_id']} status={status} "
+            f"[{i}/{total}] {summary['ticket_id']} tier={summary['tier']} status={status} "
             f"wall_clock={summary['wall_clock_seconds']:.3f}s{crashed_note}",
             file=sys.stderr,
         )

@@ -795,6 +795,252 @@ def print_summary(report: dict) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Tier comparison (eval/tier_compare.py) — additive, clause-(a)-only judging
+# and abstention judging. These callables are NEW; they never write to or
+# read hypothesis_semantic.json / hypothesis_semantic_v3.json, and they do
+# not touch run()/main()'s default path above.
+# ---------------------------------------------------------------------------
+
+PROMPT_VARIANT_3A = "3a-clause-a-only"
+
+# The clause-(a) text, its clarification, and its worked example are quoted
+# verbatim from build_prompt()'s clause-(a) paragraph above (not
+# re-paraphrased) so this variant applies exactly the same semantic-match
+# criterion, just without any evidence-grounding clause or observations
+# block.
+_CLAUSE_A_TEXT = (
+    "clause (a) semantic match: the candidate answer identifies a technical "
+    "root-cause condition consistent with the gold root cause's causal "
+    "chain. Differences in wording, verbosity, or added detail do NOT make "
+    "the candidate answer incorrect for clause (a). Naming a more specific "
+    "instance of the gold mechanism is correct; naming a different, "
+    "non-overlapping mechanism is incorrect. Naming the technical condition "
+    "counts even when the gold slug names a deeper mechanism: concretely, "
+    "\"the disk is full\" DOES count as correct for gold "
+    "`disk_log_rotation_gap` — do not require the candidate answer to "
+    "state that log rotation failed. Worked example: if the gold root "
+    "cause is `disk_log_rotation_gap` (log rotation failed, so logs "
+    "accumulated and filled the disk), a candidate answer that says "
+    "\"the disk is full\" satisfies clause (a) — it names the technical "
+    "condition consistent with the gold causal chain, even though it does "
+    "not identify the deeper mechanism (log rotation failure) that caused "
+    "the disk to fill; the candidate answer does not need to explain why "
+    "the disk filled."
+)
+
+
+def build_prompt_3a(ticket_text: str, category: str, hypothesis: str, gold_root_cause: str) -> str:
+    """Judging prompt applying ONLY clause (a) (semantic match) of the v3
+    rubric, with no observations/tool-output block. Deliberately blind to
+    which system produced the candidate answer — never mentions evidence
+    grounding, tools, agents, or runs.
+    """
+    return (
+        "You are judging whether a candidate answer to an IT-incident "
+        "diagnosis task identifies the same underlying root cause as a "
+        "gold root cause label.\n\n"
+        "Rubric (use this exact definition):\n"
+        f"{_CLAUSE_A_TEXT}\n\n"
+        f"Ticket category: {category}\n"
+        f"Ticket description: {ticket_text}\n\n"
+        f"Candidate answer: {hypothesis}\n\n"
+        f"Gold root cause (slug): {gold_root_cause}\n\n"
+        "Question: applying the rubric above, does the candidate answer "
+        "identify the same underlying root-cause condition as the gold "
+        "root cause slug?\n\n"
+        "Differences in wording, verbosity, or added detail do NOT make the "
+        "candidate answer incorrect. Identifying a different, "
+        "non-overlapping mechanism DOES make it incorrect. Naming a more "
+        "specific instance of the gold mechanism IS correct.\n\n"
+        "Call record_semantic_match with your boolean verdict first "
+        "(semantic_match), then a 1-3 sentence reasoning."
+    )
+
+
+RECORD_SEMANTIC_MATCH_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "record_semantic_match",
+        "description": (
+            "Record whether the candidate answer identifies the same "
+            "underlying root cause as the gold root cause (clause a "
+            "only, no evidence-grounding judgment)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "semantic_match": {
+                    "type": "boolean",
+                    "description": (
+                        "True if the candidate answer identifies the same "
+                        "underlying root-cause condition as the gold root "
+                        "cause, allowing for differences in wording, "
+                        "verbosity, or added detail. False if it names a "
+                        "different, non-overlapping mechanism."
+                    ),
+                },
+                "reasoning": {
+                    "type": "string",
+                    "description": "1-3 sentences explaining the verdict.",
+                },
+            },
+            "required": ["semantic_match", "reasoning"],
+        },
+    },
+}
+
+
+def judge_semantic_match_once(
+    ticket_text: str,
+    category: str,
+    hypothesis: str,
+    gold_root_cause: str,
+) -> tuple[bool | None, str | None, str | None]:
+    """Returns (verdict, reasoning, error), mirroring judge_once's call
+    convention and _extract_verdict's defensive parsing style.
+    """
+    prompt = build_prompt_3a(ticket_text, category, hypothesis, gold_root_cause)
+    messages = [{"role": "user", "content": prompt}]
+    resp = call_llm_with_tools(
+        messages,
+        [RECORD_SEMANTIC_MATCH_SCHEMA],
+        temperature=0.0,
+        tool_choice={"type": "function", "function": {"name": "record_semantic_match"}},
+    )
+
+    if isinstance(resp, dict) and "error" in resp:
+        return None, None, resp["error"]
+
+    try:
+        message = resp.choices[0].message
+        tool_calls = message.tool_calls
+    except (AttributeError, IndexError):
+        return None, None, "malformed LLM response: no choices/message"
+
+    if not tool_calls:
+        return None, None, "no tool call returned by the model"
+
+    call = tool_calls[0]
+    try:
+        args = json.loads(call.function.arguments)
+    except (json.JSONDecodeError, AttributeError, TypeError) as exc:
+        return None, None, f"failed to parse tool call arguments: {exc}"
+
+    if "semantic_match" not in args or not isinstance(args["semantic_match"], bool):
+        return None, None, "tool call arguments missing/invalid 'semantic_match'"
+
+    reasoning = args.get("reasoning", "")
+    if not isinstance(reasoning, str):
+        reasoning = str(reasoning)
+
+    return args["semantic_match"], reasoning, None
+
+
+PROMPT_VARIANT_ABSTENTION = "abstention-v1"
+
+
+def build_prompt_abstention(ticket_text: str, candidate_answer: str) -> str:
+    """Judging prompt for whether a candidate answer abstains from naming a
+    specific root cause. Deliberately blind to which system produced the
+    answer — never mentions escalation, agents, tools, or tiers.
+    """
+    return (
+        "You are judging whether a candidate answer to an IT-incident "
+        "diagnosis task abstains from naming a specific root cause.\n\n"
+        "Criterion (use this exact definition): abstained = the answer "
+        "declines to commit to a specific root cause, OR states that the "
+        "available information is insufficient to determine the root "
+        "cause, OR asks for more investigation before a cause can be "
+        "named. An answer that names a specific root cause confidently "
+        "has NOT abstained, even if it hedges with a low confidence "
+        "label.\n\n"
+        f"Ticket description: {ticket_text}\n\n"
+        f"Candidate answer: {candidate_answer}\n\n"
+        "Question: applying the criterion above, did the candidate answer "
+        "abstain?\n\n"
+        "Call record_abstention with your boolean verdict first "
+        "(abstained), then a 1-3 sentence reasoning."
+    )
+
+
+RECORD_ABSTENTION_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "record_abstention",
+        "description": (
+            "Record whether the candidate answer abstains from naming a "
+            "specific root cause, per the stated criterion."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "abstained": {
+                    "type": "boolean",
+                    "description": (
+                        "True if the answer declines to commit to a "
+                        "specific root cause, states the available "
+                        "information is insufficient, or asks for more "
+                        "investigation before a cause can be named. False "
+                        "if it names a specific root cause confidently, "
+                        "even with a low confidence label."
+                    ),
+                },
+                "reasoning": {
+                    "type": "string",
+                    "description": "1-3 sentences explaining the verdict.",
+                },
+            },
+            "required": ["abstained", "reasoning"],
+        },
+    },
+}
+
+
+def judge_abstention_once(
+    ticket_text: str,
+    candidate_answer: str,
+) -> tuple[bool | None, str | None, str | None]:
+    """Returns (verdict, reasoning, error), mirroring judge_once's call
+    convention and _extract_verdict's defensive parsing style.
+    """
+    prompt = build_prompt_abstention(ticket_text, candidate_answer)
+    messages = [{"role": "user", "content": prompt}]
+    resp = call_llm_with_tools(
+        messages,
+        [RECORD_ABSTENTION_SCHEMA],
+        temperature=0.0,
+        tool_choice={"type": "function", "function": {"name": "record_abstention"}},
+    )
+
+    if isinstance(resp, dict) and "error" in resp:
+        return None, None, resp["error"]
+
+    try:
+        message = resp.choices[0].message
+        tool_calls = message.tool_calls
+    except (AttributeError, IndexError):
+        return None, None, "malformed LLM response: no choices/message"
+
+    if not tool_calls:
+        return None, None, "no tool call returned by the model"
+
+    call = tool_calls[0]
+    try:
+        args = json.loads(call.function.arguments)
+    except (json.JSONDecodeError, AttributeError, TypeError) as exc:
+        return None, None, f"failed to parse tool call arguments: {exc}"
+
+    if "abstained" not in args or not isinstance(args["abstained"], bool):
+        return None, None, "tool call arguments missing/invalid 'abstained'"
+
+    reasoning = args.get("reasoning", "")
+    if not isinstance(reasoning, str):
+        reasoning = str(reasoning)
+
+    return args["abstained"], reasoning, None
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gap-set", action="store_true", default=True)

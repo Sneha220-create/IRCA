@@ -13,7 +13,7 @@ chroma_db/
 # Paired A/B trigger-experiment output -- same class as the raw sweep output
 # above: bulky, regenerable, and currently PARTIAL (interrupted mid-run).
 eval/results/variance_triggers/
- is the same class of artifact: raw
+# eval/results/adversarial/ is the same class of artifact: raw
 # per-ticket adversarial sweep output, regenerable by re-running the
 # adversarial sweep. Its verdict and undelivered evidence are already
 # preserved in the committed report.json/report.md, so the raw per-ticket
@@ -37,3 +37,11 @@ key.pub
 # transient RAGAS resume checkpoints
 eval/results/.ragas_checkpoint_*.jsonl
 eval/results/.ckpt_*.jsonl
+
+# 4-tier baseline comparison (Session 11). Same class as the raw sweep
+# output above: bulky, regenerable per-ticket files across 3 repeats x 4
+# tiers, plus the judge verdict cache. The scored summary that the report
+# renders lives at eval/results/tier_compare.json -- outside these dirs --
+# and IS tracked, exactly as report.json is.
+eval/results/tier_compare/
+eval/results/tier_compare_pilot/
