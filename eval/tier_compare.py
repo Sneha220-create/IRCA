@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -46,6 +47,11 @@ DEFAULT_ROOT = REPO_ROOT / "eval" / "results" / "tier_compare"
 DEFAULT_OUT = REPO_ROOT / "eval" / "results" / "tier_compare.json"
 
 CATEGORIES = ["easy", "multi_step", "tool_heavy", "rag_heavy"]
+
+# Flush the judge cache to disk after every N newly-computed (non-cache-hit)
+# verdicts. Smaller N loses less work to an interrupt but costs more disk
+# writes during a long paid run; 25 is a middle ground.
+CACHE_FLUSH_EVERY = 25
 
 TIER4_ONLY_METRICS = [
     "task_success_status_only",
@@ -239,11 +245,32 @@ def cache_key(prompt_variant: str, ticket_id: str, candidate: str | None) -> str
 def load_cache(path: Path) -> dict:
     if not path.exists():
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        print(
+            f"warning: judge cache at {path} is unreadable ({exc}); starting from an empty cache",
+            file=sys.stderr,
+        )
+        return {}
 
 
 def save_cache(path: Path, cache: dict) -> None:
-    path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+    # Atomic write: write to a .tmp sibling then os.replace, so an
+    # interrupted write never leaves a corrupt/partial cache file behind.
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, sort_keys=True)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+        raise
 
 
 class JudgeStats:
@@ -315,23 +342,42 @@ def judge_abstention(
     return verdict, reasoning
 
 
-# Deliberately phrase-based, not the bare substring "tier" -- a legitimate
-# candidate answer can contain that word (e.g. "the tier of service was
-# degraded") without leaking which tier produced it, so rejecting the bare
-# word would be a false positive. This is the single source of truth for
-# what assert_blind checks; keep it in sync with the loop below.
-_FORBIDDEN_BLIND_TERMS = ["tier 1", "tier 2", "tier 3", "tier 4", "baseline", "agent loop", "orchestrator"]
+# A previous version of this guard scanned the CANDIDATE ANSWER TEXT for
+# terms like "tier 1" or "orchestrator" and raised if found. That is
+# conceptually wrong: the candidate answer is model-generated data, and its
+# content cannot reveal which tier produced it -- any tier's model can write
+# any English sentence. It produced real false positives, e.g. ticket T013's
+# genuine answer "In Kubernetes (or similar orchestrators), a canary rollout
+# will not advance until the first replica passes its readiness probe" is
+# ordinary IT vocabulary, not harness leakage; "baseline traffic levels" and
+# "tier 1 support" are equally innocent. What actually guarantees blindness
+# is structural: build_prompt_3a / build_prompt_abstention take no tier
+# argument at all, and candidate_answer reads exactly one field per tier
+# without ever synthesizing across tiers. assert_prompt_tier_invariant below
+# checks that structural invariant instead -- do not restore the content scan.
 
 
-def assert_blind(candidate: str, prompt: str) -> None:
-    """Defensive assertion: the candidate text passed to a judge prompt
-    builder must carry no tier marker. This only checks the SHAPE of the
-    call (no tier/baseline keyword literally concatenated in), it does not
-    inspect the LLM prompt text itself (see build_prompt_3a /
-    build_prompt_abstention for the actual blind prompt bodies)."""
-    lowered = candidate.lower()
-    for term in _FORBIDDEN_BLIND_TERMS:
-        assert term not in lowered, f"candidate answer leaks tier marker {term!r}"
+def assert_prompt_tier_invariant() -> None:
+    """Asserts the real blinding invariant: the judge prompt builders are
+    structurally incapable of varying with tier. Checked once (the property
+    is static, not per-answer) via two checks:
+
+    1. Neither builder accepts a parameter named "tier".
+    2. Calling each builder twice with identical arguments yields a
+       byte-identical prompt (no hidden nondeterminism/tier leakage sneaking
+       in through defaults, globals, etc).
+    """
+    for builder in (llm_judge.build_prompt_3a, llm_judge.build_prompt_abstention):
+        params = inspect.signature(builder).parameters
+        assert "tier" not in params, f"{builder.__name__} must not accept a 'tier' parameter"
+
+    prompt_3a_a = llm_judge.build_prompt_3a("ticket text", "easy", "hypothesis text", "gold root cause")
+    prompt_3a_b = llm_judge.build_prompt_3a("ticket text", "easy", "hypothesis text", "gold root cause")
+    assert prompt_3a_a == prompt_3a_b, "build_prompt_3a is not deterministic for identical inputs"
+
+    prompt_abs_a = llm_judge.build_prompt_abstention("ticket text", "candidate text")
+    prompt_abs_b = llm_judge.build_prompt_abstention("ticket text", "candidate text")
+    assert prompt_abs_a == prompt_abs_b, "build_prompt_abstention is not deterministic for identical inputs"
 
 
 # ---------------------------------------------------------------------------
@@ -349,15 +395,30 @@ def score_all(
     tiers: list[int] | None,
     no_cache: bool,
 ) -> dict:
+    assert_prompt_tier_invariant()
+
     records = discover_results(root, tiers)
     tiers_found = sorted({r["tier"] for r in records})
     repeats_found = {t: sorted({r["repeat"] for r in records if r["tier"] == t}) for t in tiers_found}
 
     cache_path = root / "judge_cache.json"
     cache = {} if no_cache else load_cache(cache_path)
+    n_cached_at_start = len(cache)
     stats = JudgeStats()
 
+    n_answers_to_judge = sum(
+        1
+        for r in records
+        if tickets_by_id.get(r["ticket_id"]) is not None and candidate_answer(r["result"]) is not None
+    )
+    print(
+        f"[judging] {n_answers_to_judge} answer(s) to judge, {n_cached_at_start} entries already in cache",
+        file=sys.stderr,
+    )
+
     per_answer = []
+    n_judged = 0
+    n_since_flush = 0
 
     # primary[tier][repeat][category-or-"overall"] = (n_success, n_trials)
     primary_counts: dict[int, dict[int, dict[str, list[int]]]] = {}
@@ -397,7 +458,7 @@ def score_all(
                     }
                 )
                 continue
-            assert_blind(answer, "")
+            n_calls_before = stats.n_judge_calls_made
             verdict, reasoning = judge_semantic(
                 ticket_id, ticket_text, category, answer, gold_root_cause, cache, stats, no_cache
             )
@@ -416,6 +477,19 @@ def score_all(
                     "reasoning": reasoning,
                 }
             )
+            n_judged += 1
+            if stats.n_judge_calls_made > n_calls_before:
+                n_since_flush += 1
+            if n_judged % 25 == 0:
+                print(
+                    f"[judged {n_judged}/{n_answers_to_judge}] cache_hits={stats.n_cache_hits} "
+                    f"calls={stats.n_judge_calls_made} tier={tier} ticket={ticket_id}",
+                    file=sys.stderr,
+                )
+            if not no_cache and n_since_flush >= CACHE_FLUSH_EVERY:
+                save_cache(cache_path, cache)
+                print(f"[cache flushed] {len(cache)} entries", file=sys.stderr)
+                n_since_flush = 0
         else:
             abs_bucket = abstention_counts[tier][repeat]
             if answer is None:
@@ -432,7 +506,7 @@ def score_all(
                     }
                 )
                 continue
-            assert_blind(answer, "")
+            n_calls_before = stats.n_judge_calls_made
             verdict, reasoning = judge_abstention(ticket_id, ticket_text, answer, cache, stats, no_cache)
             abs_bucket[1] += 1
             if verdict is True:
@@ -447,6 +521,19 @@ def score_all(
                     "reasoning": reasoning,
                 }
             )
+            n_judged += 1
+            if stats.n_judge_calls_made > n_calls_before:
+                n_since_flush += 1
+            if n_judged % 25 == 0:
+                print(
+                    f"[judged {n_judged}/{n_answers_to_judge}] cache_hits={stats.n_cache_hits} "
+                    f"calls={stats.n_judge_calls_made} tier={tier} ticket={ticket_id}",
+                    file=sys.stderr,
+                )
+            if not no_cache and n_since_flush >= CACHE_FLUSH_EVERY:
+                save_cache(cache_path, cache)
+                print(f"[cache flushed] {len(cache)} entries", file=sys.stderr)
+                n_since_flush = 0
 
     if not no_cache:
         save_cache(cache_path, cache)

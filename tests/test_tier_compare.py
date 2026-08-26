@@ -338,3 +338,216 @@ def test_discover_results_no_repeat_subdir(tmp_path):
     assert len(records) == 1
     assert records[0]["tier"] == 2
     assert records[0]["repeat"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Regression: ordinary IT vocabulary in a real candidate answer must not
+# raise. The old content scan (_FORBIDDEN_BLIND_TERMS / assert_blind) was
+# removed because it treated words like "orchestrator", "baseline", and
+# "tier 1" appearing in genuine model-generated prose as a blind-leak, when
+# in fact the candidate answer's content can never reveal which tier
+# produced it -- only the (tier-blind) prompt builders matter for blinding.
+# ---------------------------------------------------------------------------
+
+
+def test_ordinary_it_vocabulary_in_answer_does_not_raise(tmp_path):
+    real_answers = [
+        "In Kubernetes (or similar orchestrators), a canary rollout will not "
+        "advance until the first replica passes its readiness probe.",
+        "Latency spiked well above baseline traffic levels during the incident window.",
+        "This was routed to tier 1 support before being escalated.",
+    ]
+
+    def fake_semantic(ticket_text, category, hypothesis, gold_root_cause):
+        return True, "ok", None
+
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    for i, answer in enumerate(real_answers):
+        ticket_id = f"T00{i}"
+        (root / "tier1" / f"{ticket_id}.json").write_text(
+            json.dumps(_baseline_result(1, ticket_id, answer)), encoding="utf-8"
+        )
+
+    tickets_by_id = {
+        f"T00{i}": {**TICKET_A, "id": f"T00{i}"} for i in range(len(real_answers))
+    }
+
+    with patch.object(llm_judge, "judge_semantic_match_once", side_effect=fake_semantic):
+        # Must not raise.
+        scored = tier_compare.score_all(root, tickets_by_id, tiers=None, no_cache=True)
+
+    assert scored["n_crashed"].get(1, 0) == 0
+    assert len(scored["per_answer"]) == len(real_answers)
+    for entry in scored["per_answer"]:
+        assert entry["verdict"] is True
+
+
+# ---------------------------------------------------------------------------
+# Structural blinding guard
+# ---------------------------------------------------------------------------
+
+
+def test_assert_prompt_tier_invariant_passes_for_current_builders():
+    # Must not raise for the real llm_judge builders.
+    tier_compare.assert_prompt_tier_invariant()
+
+
+def test_assert_prompt_tier_invariant_fails_if_builder_gains_tier_param():
+    def fake_build_prompt_3a(ticket_text, category, hypothesis, gold_root_cause, tier):
+        return "prompt"
+
+    with patch.object(llm_judge, "build_prompt_3a", fake_build_prompt_3a):
+        with pytest.raises(AssertionError):
+            tier_compare.assert_prompt_tier_invariant()
+
+
+# ---------------------------------------------------------------------------
+# Incremental cache persistence / robustness
+# ---------------------------------------------------------------------------
+
+
+def _make_many_tickets(root: Path, n: int):
+    tier_dir = root / "tier1"
+    tier_dir.mkdir(parents=True, exist_ok=True)
+    tickets_by_id = {}
+    for i in range(n):
+        ticket_id = f"T{i:04d}"
+        (tier_dir / f"{ticket_id}.json").write_text(
+            json.dumps(_baseline_result(1, ticket_id, f"answer {i}")), encoding="utf-8"
+        )
+        tickets_by_id[ticket_id] = {
+            "id": ticket_id,
+            "category": "easy",
+            "ticket_text": f"ticket text {i}",
+            "gold_root_cause": "some_cause",
+            "expected_behavior": "resolve_with_approval",
+        }
+    return tickets_by_id
+
+
+def test_cache_flushed_periodically_for_long_run(tmp_path):
+    root = tmp_path / "root"
+    n = tier_compare.CACHE_FLUSH_EVERY * 2 + 5
+    tickets_by_id = _make_many_tickets(root, n)
+
+    save_calls = {"n": 0}
+    real_save_cache = tier_compare.save_cache
+
+    def fake_save_cache(path, cache):
+        save_calls["n"] += 1
+        real_save_cache(path, cache)
+
+    def fake_semantic(ticket_text, category, hypothesis, gold_root_cause):
+        return True, "ok", None
+
+    with patch.object(tier_compare, "save_cache", side_effect=fake_save_cache):
+        with patch.object(llm_judge, "judge_semantic_match_once", side_effect=fake_semantic):
+            tier_compare.score_all(root, tickets_by_id, tiers=None, no_cache=False)
+
+    assert save_calls["n"] > 1
+
+
+def test_cache_saved_once_for_short_run(tmp_path):
+    root = tmp_path / "root"
+    n = tier_compare.CACHE_FLUSH_EVERY - 5
+    tickets_by_id = _make_many_tickets(root, n)
+
+    save_calls = {"n": 0}
+    real_save_cache = tier_compare.save_cache
+
+    def fake_save_cache(path, cache):
+        save_calls["n"] += 1
+        real_save_cache(path, cache)
+
+    def fake_semantic(ticket_text, category, hypothesis, gold_root_cause):
+        return True, "ok", None
+
+    with patch.object(tier_compare, "save_cache", side_effect=fake_save_cache):
+        with patch.object(llm_judge, "judge_semantic_match_once", side_effect=fake_semantic):
+            tier_compare.score_all(root, tickets_by_id, tiers=None, no_cache=False)
+
+    assert save_calls["n"] == 1
+
+
+def test_save_cache_is_atomic_and_round_trips(tmp_path):
+    cache_path = tmp_path / "judge_cache.json"
+    cache = {"key1": {"verdict": True, "reasoning": "r", "error": None}}
+
+    tier_compare.save_cache(cache_path, cache)
+
+    tmp_files = list(tmp_path.glob("*.tmp"))
+    assert tmp_files == []
+    assert cache_path.exists()
+    loaded = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert loaded == cache
+
+
+def test_load_cache_corrupt_file_starts_empty_and_warns(tmp_path, capsys):
+    cache_path = tmp_path / "judge_cache.json"
+    cache_path.write_text("{not valid json!!", encoding="utf-8")
+
+    result = tier_compare.load_cache(cache_path)
+
+    assert result == {}
+    captured = capsys.readouterr()
+    assert "warning" in captured.err.lower()
+
+
+def test_corrupt_cache_does_not_abort_run(tmp_path, capsys):
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_baseline_result(1, "T001", "the disk is full")), encoding="utf-8"
+    )
+    (root / "judge_cache.json").write_text("garbage not json", encoding="utf-8")
+
+    def fake_semantic(ticket_text, category, hypothesis, gold_root_cause):
+        return True, "ok", None
+
+    with patch.object(llm_judge, "judge_semantic_match_once", side_effect=fake_semantic):
+        scored = tier_compare.score_all(root, {"T001": TICKET_A}, tiers=None, no_cache=False)
+
+    assert scored["n_judge_calls_made"] == 1
+    captured = capsys.readouterr()
+    assert "warning" in captured.err.lower()
+
+
+def test_progress_lines_go_to_stderr_not_stdout(tmp_path, capsys):
+    root = tmp_path / "root"
+    n = tier_compare.CACHE_FLUSH_EVERY + 3
+    tickets_by_id = _make_many_tickets(root, n)
+
+    def fake_semantic(ticket_text, category, hypothesis, gold_root_cause):
+        return True, "ok", None
+
+    with patch.object(llm_judge, "judge_semantic_match_once", side_effect=fake_semantic):
+        tier_compare.score_all(root, tickets_by_id, tiers=None, no_cache=False)
+
+    captured = capsys.readouterr()
+    assert "[judged" not in captured.out
+    assert "[judged" in captured.err
+
+
+def test_interrupted_run_keeps_earlier_verdicts(tmp_path):
+    root = tmp_path / "root"
+    n = tier_compare.CACHE_FLUSH_EVERY + 5
+    tickets_by_id = _make_many_tickets(root, n)
+
+    calls = {"n": 0}
+    crash_at = tier_compare.CACHE_FLUSH_EVERY + 2
+
+    def flaky_semantic(ticket_text, category, hypothesis, gold_root_cause):
+        calls["n"] += 1
+        if calls["n"] == crash_at:
+            raise RuntimeError("simulated interrupt")
+        return True, "ok", None
+
+    with patch.object(llm_judge, "judge_semantic_match_once", side_effect=flaky_semantic):
+        with pytest.raises(RuntimeError):
+            tier_compare.score_all(root, tickets_by_id, tiers=None, no_cache=False)
+
+    cache_path = root / "judge_cache.json"
+    assert cache_path.exists()
+    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert len(cache) >= tier_compare.CACHE_FLUSH_EVERY

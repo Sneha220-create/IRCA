@@ -1,0 +1,1183 @@
+{
+  "tier_compare_available": true,
+  "audited_count": 53,
+  "rows": [
+    {
+      "ticket_id": "T001",
+      "category": "easy",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection"
+      ],
+      "metric_token_hits": [
+        "active",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "... starts at 10:00 AM. Error logs mention connection timeouts and our DB dashboard shows act...",
+        "...eouts and our DB dashboard shows active connections pinned near the max.",
+        "...ion timeouts and our DB dashboard shows active connections pinned near the max.",
+        "... starts at 10:00 AM. Error logs mention connection timeouts and our DB dashboard shows act...",
+        "...eouts and our DB dashboard shows active connections pinned near the max."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T002",
+      "category": "easy",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "memory",
+        "cache",
+        "overgrowth"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "... application latency rose sharply while memory usage on the cache node hovered above 9...",
+        "Redis cache hit rate dropped from 96% to 72% over t...",
+        "... rose sharply while memory usage on the cache node hovered above 90%.",
+        "... cache hit rate dropped from 96% to 72% over the last hour, and application latency ...",
+        "Redis cache hit rate dropped from 96% to 72% over t...",
+        "... rose sharply while memory usage on the cache node hovered above 90%.",
+        "... application latency rose sharply while memory usage on the cache node hovered above 9..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T003",
+      "category": "easy",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "metric_token_hits": [
+        "ingress",
+        "queue",
+        "depth"
+      ],
+      "giveaway_spans": [
+        "...ring the morning traffic spike, and the ingress dashboard shows queue depth and max con...",
+        "... spike, and the ingress dashboard shows queue depth and max connections near the conf...",
+        "...ring the morning traffic spike, and the ingress dashboard shows queue depth and max con...",
+        "... spike, and the ingress dashboard shows queue depth and max connections near the conf...",
+        "..., and the ingress dashboard shows queue depth and max connections near the configured..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T004",
+      "category": "easy",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "deploy"
+      ],
+      "metric_token_hits": [
+        "readiness",
+        "probe"
+      ],
+      "giveaway_spans": [
+        "The new deployment is stuck because pods never become read...",
+        "...ck because pods never become ready, and readiness probes are failing with repeated connec...",
+        "... pods never become ready, and readiness probes are failing with repeated connection re..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T005",
+      "category": "easy",
+      "gold_root_cause": "auth_signing_key_mismatch",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "auth"
+      ],
+      "metric_token_hits": [
+        "auth"
+      ],
+      "giveaway_spans": [
+        "...sessions are failing while others still authenticate successfully.",
+        "...sessions are failing while others still authenticate successfully."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T006",
+      "category": "multi_step",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection",
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...under moderate load. The app logs show `connection pool timeout` errors, and the DB dashbo...",
+        "... while query latency remains stable but connection wait time increases.",
+        "...ate load. The app logs show `connection pool timeout` errors, and the DB dashboard s...",
+        "... errors, and the DB dashboard shows the pool nearly full while query latency remains...",
+        "...ate load. The app logs show `connection pool timeout` errors, and the DB dashboard s...",
+        "... errors, and the DB dashboard shows the pool nearly full while query latency remains...",
+        "...under moderate load. The app logs show `connection pool timeout` errors, and the DB dashbo...",
+        "... while query latency remains stable but connection wait time increases."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T007",
+      "category": "multi_step",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "memory",
+        "cache"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "...I is much slower before noon, and Redis memory grows steadily until the cache starts e...",
+        "...d Redis memory grows steadily until the cache starts evicting keys. Customer-facing r...",
+        "...d Redis memory grows steadily until the cache starts evicting keys. Customer-facing r...",
+        "...I is much slower before noon, and Redis memory grows steadily until the cache starts e..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T008",
+      "category": "multi_step",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 1,
+      "tier1_trials": 3,
+      "tier1_rate": 0.3333333333333333,
+      "gold_token_hits": [
+        "deploy",
+        "healthcheck"
+      ],
+      "metric_token_hits": [
+        "readiness",
+        "success"
+      ],
+      "giveaway_spans": [
+        "... the rollout is sleeping in a partially deployed state. Pods keep restarting while the r...",
+        "...latest release, the platform is failing health checks and the rollout is sleeping in a...",
+        "...d state. Pods keep restarting while the readiness endpoint never returns success.",
+        "...le the readiness endpoint never returns success."
+      ],
+      "classification": "leaked_partial"
+    },
+    {
+      "ticket_id": "T009",
+      "category": "multi_step",
+      "gold_root_cause": "disk_log_rotation_gap",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "disk",
+        "rotation"
+      ],
+      "metric_token_hits": [
+        "disk"
+      ],
+      "giveaway_spans": [
+        "... write events and the app logs now show disk full errors from the storage volume. Co...",
+        "... storage volume. Container logs stopped rotating and the partition sits above 95% utiliz...",
+        "... write events and the app logs now show disk full errors from the storage volume. Co..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T010",
+      "category": "multi_step",
+      "gold_root_cause": "auth_signing_key_mismatch",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "auth"
+      ],
+      "metric_token_hits": [
+        "auth",
+        "token"
+      ],
+      "giveaway_spans": [
+        "...e EU region report sudden 401s after an auth rotation, but a subset of requests stil...",
+        "...e EU region report sudden 401s after an auth rotation, but a subset of requests stil...",
+        "...uests still succeeds depending on which token issuer node handled them. The issue sta..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T011",
+      "category": "tool_heavy",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "metric_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "giveaway_spans": [
+        "...ctions during the nightly batch and the ingress queue remains at 85% of capacity while ...",
+        "...uring the nightly batch and the ingress queue remains at 85% of capacity while backen...",
+        "...ctions during the nightly batch and the ingress queue remains at 85% of capacity while ...",
+        "...uring the nightly batch and the ingress queue remains at 85% of capacity while backen..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T012",
+      "category": "tool_heavy",
+      "gold_root_cause": "disk_log_rotation_gap",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [
+        "usage"
+      ],
+      "giveaway_spans": [
+        "...nd log directory are reported above 93% usage and the node is still accepting traffic..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T013",
+      "category": "tool_heavy",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "deploy"
+      ],
+      "metric_token_hits": [
+        "probe",
+        "success"
+      ],
+      "giveaway_spans": [
+        "...cessfully. Our probes time out, and the deployment is never progressing past the first rep...",
+        "...h the process started successfully. Our probes time out, and the deployment is never p...",
+        "... ready, even though the process started successfully. Our probes time out, and the deploymen..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T016",
+      "category": "easy",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection",
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool",
+        "active",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...and the database dashboard shows active connections sitting right at the configured pool ce...",
+        "...ections sitting right at the configured pool ceiling.",
+        "...ections sitting right at the configured pool ceiling.",
+        "... bump, and the database dashboard shows active connections sitting right at the config...",
+        "...and the database dashboard shows active connections sitting right at the configured pool ce..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T017",
+      "category": "easy",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "memory",
+        "cache"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "...% this afternoon while the cache node's memory usage climbed above 91% and stayed ther...",
+        "The session cache's hit rate slid from 94% to 68% this af...",
+        "...rom 94% to 68% this afternoon while the cache node's memory usage climbed above 91% a...",
+        "The session cache's hit rate slid from 94% to 68% this af...",
+        "...rom 94% to 68% this afternoon while the cache node's memory usage climbed above 91% a...",
+        "...% this afternoon while the cache node's memory usage climbed above 91% and stayed ther..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T018",
+      "category": "easy",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "queue"
+      ],
+      "metric_token_hits": [
+        "queue"
+      ],
+      "giveaway_spans": [
+        "...oad balancer panel shows the connection queue pegged near its configured maximum.",
+        "...oad balancer panel shows the connection queue pegged near its configured maximum."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T019",
+      "category": "easy",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [
+        "readiness",
+        "probe"
+      ],
+      "giveaway_spans": [
+        "...a not-ready state indefinitely, and the readiness probe log shows repeated timeout errors...",
+        "...y state indefinitely, and the readiness probe log shows repeated timeout errors right..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T020",
+      "category": "easy",
+      "gold_root_cause": "auth_signing_key_mismatch",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "auth",
+        "signing"
+      ],
+      "metric_token_hits": [
+        "auth"
+      ],
+      "giveaway_spans": [
+        "...e web clients on a different node still authenticate fine.",
+        "...ght after the identity team rotated the signing key this morning, while web clients on ...",
+        "...e web clients on a different node still authenticate fine."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T021",
+      "category": "easy",
+      "gold_root_cause": "disk_log_rotation_gap",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "disk"
+      ],
+      "metric_token_hits": [
+        "disk"
+      ],
+      "giveaway_spans": [
+        "The archival job started throwing disk full errors overnight, and the storage ...",
+        "The archival job started throwing disk full errors overnight, and the storage ..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T022",
+      "category": "easy",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection",
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool",
+        "active",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...ek, and the DB pool metric shows active connections parked at the ceiling for the second da...",
+        "...ermittently again this week, and the DB pool metric shows active connections parked ...",
+        "...ermittently again this week, and the DB pool metric shows active connections parked ...",
+        "...this week, and the DB pool metric shows active connections parked at the ceiling for t...",
+        "...ek, and the DB pool metric shows active connections parked at the ceiling for the second da..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T023",
+      "category": "easy",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 2,
+      "tier1_trials": 3,
+      "tier1_rate": 0.6666666666666666,
+      "gold_token_hits": [
+        "memory",
+        "cache"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "... hit rate keeps dropping and the node's memory usage graph is flatlined above 90% for ...",
+        "The product-recommendation cache is thrashing: hit rate keeps dropping a...",
+        "The product-recommendation cache is thrashing: hit rate keeps dropping a...",
+        "... hit rate keeps dropping and the node's memory usage graph is flatlined above 90% for ..."
+      ],
+      "classification": "leaked_partial"
+    },
+    {
+      "ticket_id": "T024",
+      "category": "easy",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "metric_token_hits": [
+        "ingress",
+        "queue",
+        "depth"
+      ],
+      "giveaway_spans": [
+        "...M the edge gets a wave of 502s, and the ingress panel shows the connection queue depth ...",
+        "... the ingress panel shows the connection queue depth crossing its configured limit eac...",
+        "...M the edge gets a wave of 502s, and the ingress panel shows the connection queue depth ...",
+        "... the ingress panel shows the connection queue depth crossing its configured limit eac...",
+        "...ngress panel shows the connection queue depth crossing its configured limit each time..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T025",
+      "category": "easy",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [
+        "probe"
+      ],
+      "giveaway_spans": [
+        "...ng to roll forward because the liveness probe keeps failing right as the container fi..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T026",
+      "category": "multi_step",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection",
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...gs show occasional `timeout waiting for connection` lines, and only after checking the DB ...",
+        "...fter checking the DB dashboard does the pool metric reveal it is nearly saturated wh...",
+        "...fter checking the DB dashboard does the pool metric reveal it is nearly saturated wh...",
+        "...gs show occasional `timeout waiting for connection` lines, and only after checking the DB ..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T027",
+      "category": "multi_step",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "memory",
+        "cache"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "...fallbacks to the database, and only the memory metrics reveal the cache node has been ...",
+        "...r this week; logs show a rising rate of cache-miss fallbacks to the database, and onl...",
+        "... and only the memory metrics reveal the cache node has been climbing toward its ceili...",
+        "...r this week; logs show a rising rate of cache-miss fallbacks to the database, and onl...",
+        "... and only the memory metrics reveal the cache node has been climbing toward its ceili...",
+        "...fallbacks to the database, and only the memory metrics reveal the cache node has been ..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T028",
+      "category": "multi_step",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "metric_token_hits": [
+        "ingress",
+        "queue",
+        "depth"
+      ],
+      "giveaway_spans": [
+        "...ibe the site as flaky rather than down; ingress logs show scattered connection resets, ...",
+        "... connection resets, and metrics confirm queue depth creeping toward its limit only du...",
+        "...ibe the site as flaky rather than down; ingress logs show scattered connection resets, ...",
+        "... connection resets, and metrics confirm queue depth creeping toward its limit only du...",
+        "...ction resets, and metrics confirm queue depth creeping toward its limit only during s..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T029",
+      "category": "multi_step",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [
+        "readiness",
+        "probe"
+      ],
+      "giveaway_spans": [
+        "...s the probe-failure metric that reveals readiness checks are timing out well after boot.",
+        "...ly starting cleanly each time; it's the probe-failure metric that reveals readiness c..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T030",
+      "category": "multi_step",
+      "gold_root_cause": "auth_signing_key_mismatch",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "auth"
+      ],
+      "metric_token_hits": [
+        "auth"
+      ],
+      "giveaway_spans": [
+        "...eem random at first; only after pulling auth logs and comparing against the key-rota...",
+        "...eem random at first; only after pulling auth logs and comparing against the key-rota..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T031",
+      "category": "multi_step",
+      "gold_root_cause": "disk_log_rotation_gap",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "disk"
+      ],
+      "metric_token_hits": [
+        "disk"
+      ],
+      "giveaway_spans": [
+        "... the volume utilization metric does the disk exhaustion pattern become clear.",
+        "... the volume utilization metric does the disk exhaustion pattern become clear."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T032",
+      "category": "multi_step",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection",
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...casionally hangs mid-request; logs show connection acquisition retries, and metrics confir...",
+        "...ion retries, and metrics confirm the DB pool is running close to its cap specificall...",
+        "...ion retries, and metrics confirm the DB pool is running close to its cap specificall...",
+        "...casionally hangs mid-request; logs show connection acquisition retries, and metrics confir..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T033",
+      "category": "multi_step",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 2,
+      "tier1_trials": 3,
+      "tier1_rate": 0.6666666666666666,
+      "gold_token_hits": [
+        "memory",
+        "cache",
+        "overgrowth"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "...owing cache-fallback frequency, and the memory metric confirms usage has been trending...",
+        "... several days; log samples show growing cache-fallback frequency, and the memory metr...",
+        "...the profile page has crept up gradually over several days; log samples show growing ...",
+        "... several days; log samples show growing cache-fallback frequency, and the memory metr...",
+        "...owing cache-fallback frequency, and the memory metric confirms usage has been trending..."
+      ],
+      "classification": "leaked_partial"
+    },
+    {
+      "ticket_id": "T034",
+      "category": "multi_step",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "metric_token_hits": [
+        "ingress",
+        "queue",
+        "depth"
+      ],
+      "giveaway_spans": [
+        "...rrors only during automated batch runs; ingress logs show resets concentrated in those ...",
+        "... concentrated in those windows, and the queue-depth metric confirms saturation lines ...",
+        "...rrors only during automated batch runs; ingress logs show resets concentrated in those ...",
+        "... concentrated in those windows, and the queue-depth metric confirms saturation lines ...",
+        "...ntrated in those windows, and the queue-depth metric confirms saturation lines up wit..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T035",
+      "category": "multi_step",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "deploy",
+        "healthcheck"
+      ],
+      "metric_token_hits": [
+        "probe"
+      ],
+      "giveaway_spans": [
+        "... but serves errors for several minutes; deploy logs look clean, and only the probe-lat...",
+        "...ly the probe-latency metric reveals the health check was passing too early relative to...",
+        "...s; deploy logs look clean, and only the probe-latency metric reveals the health check..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T036",
+      "category": "multi_step",
+      "gold_root_cause": "auth_signing_key_mismatch",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "auth",
+        "mismatch"
+      ],
+      "metric_token_hits": [
+        "auth",
+        "failure"
+      ],
+      "giveaway_spans": [
+        "A handful of internal tools report authentication failures that come and go; log inspecti...",
+        "...gainst the rotation metric confirms the mismatch.",
+        "A handful of internal tools report authentication failures that come and go; log inspecti...",
+        "...of internal tools report authentication failures that come and go; log inspection shows ...",
+        "... that come and go; log inspection shows failures cluster around specific key IDs, and on..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T037",
+      "category": "multi_step",
+      "gold_root_cause": "disk_log_rotation_gap",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "disk"
+      ],
+      "metric_token_hits": [
+        "disk"
+      ],
+      "giveaway_spans": [
+        "...; logs alone look inconclusive, but the disk utilization metric shows the target vol...",
+        "...; logs alone look inconclusive, but the disk utilization metric shows the target vol..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T038",
+      "category": "multi_step",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection",
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...s up periodically; logs show a burst of connection timeouts each time, and metrics confirm...",
+        "...s each time, and metrics confirm the DB pool briefly maxes out during those exact bu...",
+        "...s each time, and metrics confirm the DB pool briefly maxes out during those exact bu...",
+        "...s up periodically; logs show a burst of connection timeouts each time, and metrics confirm..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T039",
+      "category": "multi_step",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "memory",
+        "cache"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "...alling through to source, and the cache memory metric shows usage has been steadily ri...",
+        "...kups falling through to source, and the cache memory metric shows usage has been stea...",
+        "...kups falling through to source, and the cache memory metric shows usage has been stea...",
+        "...alling through to source, and the cache memory metric shows usage has been steadily ri..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T040",
+      "category": "multi_step",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "metric_token_hits": [
+        "ingress",
+        "queue",
+        "depth"
+      ],
+      "giveaway_spans": [
+        "...ically when many users refresh at once; ingress logs show connection churn during those...",
+        "...tion churn during those bursts, and the queue-depth metric confirms it briefly exceed...",
+        "...ically when many users refresh at once; ingress logs show connection churn during those...",
+        "...tion churn during those bursts, and the queue-depth metric confirms it briefly exceed...",
+        "...hurn during those bursts, and the queue-depth metric confirms it briefly exceeds capa..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T041",
+      "category": "tool_heavy",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection",
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool",
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...trics across each of them before the DB connection pool on the checkout service stands out...",
+        "...s each of them before the DB connection pool on the checkout service stands out as t...",
+        "...s each of them before the DB connection pool on the checkout service stands out as t...",
+        "...trics across each of them before the DB connection pool on the checkout service stands out..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T042",
+      "category": "tool_heavy",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "memory",
+        "cache"
+      ],
+      "metric_token_hits": [
+        "cache",
+        "memory"
+      ],
+      "giveaway_spans": [
+        "...does the recommendation service's cache memory usage emerge as the actual driver.",
+        "...trics does the recommendation service's cache memory usage emerge as the actual drive...",
+        "...trics does the recommendation service's cache memory usage emerge as the actual drive...",
+        "...does the recommendation service's cache memory usage emerge as the actual driver."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T043",
+      "category": "tool_heavy",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "metric_token_hits": [
+        "ingress",
+        "queue"
+      ],
+      "giveaway_spans": [
+        "...s for each are needed before the shared ingress layer's queue saturation is confirmed a...",
+        "...eeded before the shared ingress layer's queue saturation is confirmed as the common c...",
+        "...s for each are needed before the shared ingress layer's queue saturation is confirmed a...",
+        "...eeded before the shared ingress layer's queue saturation is confirmed as the common c..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T044",
+      "category": "tool_heavy",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "deploy",
+        "healthcheck",
+        "misconfiguration"
+      ],
+      "metric_token_hits": [
+        "readiness",
+        "probe"
+      ],
+      "giveaway_spans": [
+        "...lly failing its health check; comparing deploy logs and probe metrics across all three...",
+        "...nly one of them is actually failing its health check; comparing deploy logs and probe ...",
+        "...t down to the third service's readiness misconfiguration.",
+        "...s the fault down to the third service's readiness misconfiguration.",
+        "...health check; comparing deploy logs and probe metrics across all three narrows the fa..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T045",
+      "category": "tool_heavy",
+      "gold_root_cause": "auth_signing_key_mismatch",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "auth",
+        "signing",
+        "mismatch"
+      ],
+      "metric_token_hits": [
+        "auth",
+        "failure"
+      ],
+      "giveaway_spans": [
+        "...d the partner API, and it takes pulling auth logs and key-rotation metrics from both...",
+        "...e mismatch is traced to a single shared signing key issue.",
+        "...trics from both entry points before the mismatch is traced to a single shared signing ke...",
+        "...d the partner API, and it takes pulling auth logs and key-rotation metrics from both...",
+        "Login failures are reported from both the mobile gatew..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T046",
+      "category": "tool_heavy",
+      "gold_root_cause": "disk_log_rotation_gap",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "disk"
+      ],
+      "metric_token_hits": [
+        "disk"
+      ],
+      "giveaway_spans": [
+        "...rchival job, and the ingestion service; disk utilization metrics from each host are ...",
+        "...rchival job, and the ingestion service; disk utilization metrics from each host are ..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T047",
+      "category": "tool_heavy",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "pool"
+      ],
+      "metric_token_hits": [
+        "pool"
+      ],
+      "giveaway_spans": [
+        "... only after comparing each service's DB pool metrics does the order service's near-s...",
+        "...does the order service's near-saturated pool emerge as the shared bottleneck feeding...",
+        "... only after comparing each service's DB pool metrics does the order service's near-s...",
+        "...does the order service's near-saturated pool emerge as the shared bottleneck feeding..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T048",
+      "category": "rag_heavy",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [],
+      "giveaway_spans": [],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T049",
+      "category": "rag_heavy",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [],
+      "giveaway_spans": [],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T050",
+      "category": "rag_heavy",
+      "gold_root_cause": "network_ingress_queue_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [],
+      "giveaway_spans": [],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T051",
+      "category": "rag_heavy",
+      "gold_root_cause": "deploy_healthcheck_misconfiguration",
+      "tier1_successes": 2,
+      "tier1_trials": 3,
+      "tier1_rate": 0.6666666666666666,
+      "gold_token_hits": [
+        "healthcheck"
+      ],
+      "metric_token_hits": [],
+      "giveaway_spans": [
+        "...the process is clearly running, but its health check keeps failing right after startup..."
+      ],
+      "classification": "leaked_partial"
+    },
+    {
+      "ticket_id": "T052",
+      "category": "rag_heavy",
+      "gold_root_cause": "auth_signing_key_mismatch",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "auth"
+      ],
+      "metric_token_hits": [
+        "auth",
+        "token",
+        "verification",
+        "failure"
+      ],
+      "giveaway_spans": [
+        "...dential refresh, some users are getting authentication failures on the dashboard while others ...",
+        "...dential refresh, some users are getting authentication failures on the dashboard while others ...",
+        "...shboard while others sail through, with token verification failing on some nodes but ...",
+        "...d while others sail through, with token verification failing on some nodes but not others de...",
+        "..., some users are getting authentication failures on the dashboard while others sail thro..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T053",
+      "category": "rag_heavy",
+      "gold_root_cause": "disk_log_rotation_gap",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [],
+      "giveaway_spans": [],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T054",
+      "category": "rag_heavy",
+      "gold_root_cause": "db_connection_pool_exhaustion",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [
+        "connection"
+      ],
+      "metric_token_hits": [
+        "connections"
+      ],
+      "giveaway_spans": [
+        "...s to the same choke point: the database connection manager only allows a fixed number of s...",
+        "...s to the same choke point: the database connection manager only allows a fixed number of s..."
+      ],
+      "classification": "leaked_strong"
+    },
+    {
+      "ticket_id": "T055",
+      "category": "rag_heavy",
+      "gold_root_cause": "memory_cache_overgrowth",
+      "tier1_successes": 3,
+      "tier1_trials": 3,
+      "tier1_rate": 1.0,
+      "gold_token_hits": [],
+      "metric_token_hits": [],
+      "giveaway_spans": [],
+      "classification": "leaked_strong"
+    }
+  ],
+  "aggregate": {
+    "overall_counts": {
+      "leaked_strong": 49,
+      "leaked_partial": 4,
+      "resistant": 0,
+      "unknown": 0
+    },
+    "per_category_counts": {
+      "easy": {
+        "leaked_strong": 14,
+        "leaked_partial": 1,
+        "resistant": 0,
+        "unknown": 0
+      },
+      "multi_step": {
+        "leaked_strong": 18,
+        "leaked_partial": 2,
+        "resistant": 0,
+        "unknown": 0
+      },
+      "tool_heavy": {
+        "leaked_strong": 10,
+        "leaked_partial": 0,
+        "resistant": 0,
+        "unknown": 0
+      },
+      "rag_heavy": {
+        "leaked_strong": 7,
+        "leaked_partial": 1,
+        "resistant": 0,
+        "unknown": 0
+      }
+    },
+    "n_with_lexical_overlap": 48,
+    "classification_x_lexical_overlap": {
+      "leaked_strong": {
+        "has_lexical_overlap": 44,
+        "no_lexical_overlap": 5
+      },
+      "leaked_partial": {
+        "has_lexical_overlap": 4,
+        "no_lexical_overlap": 0
+      },
+      "resistant": {
+        "has_lexical_overlap": 0,
+        "no_lexical_overlap": 0
+      },
+      "unknown": {
+        "has_lexical_overlap": 0,
+        "no_lexical_overlap": 0
+      }
+    },
+    "leak_rate": 0.9245283018867925,
+    "note": null
+  }
+}
