@@ -898,3 +898,60 @@ mechanism; a competent engineer guesses connection-pool exhaustion from a
 good prior. Stripping that would produce tickets that are uninformative
 rather than harder, and would be tuning the benchmark rather than fixing
 it. Tier 1 landing at 49.1% -- not 0% -- is the intended outcome.
+
+**J10. AMENDS J8. Tier 4's 0% abstention is mostly a SCORING ASYMMETRY, not
+the write-up defect J8 claimed.**
+Decision: correcting the record. J8 asserted "a human reading the agent's
+answer cannot tell it declined." That overstated the case, and the
+evidence is in the data already collected.
+`candidate_answer` extracts tiers 1-3's COMPLETE final_answer prose --
+which, because their prompts request one, contains an explicit confidence
+statement and hedging ("Confidence Level: Medium ... further
+investigation is needed to confirm the exact cause"). For tier 4 it
+extracts `state.hypothesis` ALONE, a single field whose job is to hold
+the best-guess cause, not to hedge. The abstention judge therefore read
+tiers 1-3's whole write-up against tier 4's cause line.
+Measured over the 30 ambiguous tier-4 runs on the symptom-only set:
+  status == "escalated"     30/30 = 100%
+  confidence < 0.5          24/30 =  80%
+  mean confidence                    0.34
+  prose-judged abstention    0/30 =   0%   <- what the table reported
+The belief state DOES encode the uncertainty; the extracted field simply
+isn't where it lives. So the two `other_ahead` abstention cells against
+tier 4 should be read as "not measured comparably", not as a behavioural
+loss.
+NOT rejected, and still worth doing: tier 4's hypothesis text really is
+phrased declaratively ("X is causing Y") even at confidence 0.15, so a
+reader of that one field alone would be misled. That is a smaller, real
+write-up nit -- distinct from J8's original claim.
+The PRIMARY metric is unaffected: semantic match judges the cause claim,
+and `hypothesis` is the correct field for that on tier 4. Only the
+abstention sub-table is compromised. A corrected comparison would either
+render tier 4's status+confidence into its candidate text, or extract
+only the cause claim from tiers 1-3 -- not attempted here, because
+changing the extraction after seeing the result is exactly the tuning J5
+prohibits. It should be decided and preregistered before the next run.
+
+**J11. The residual leak floor is set by CORPUS DESIGN, not ticket
+wording: there are only 6 distinct root causes across 53 tickets.**
+Decision: recorded as the limit on further rewriting. After the
+symptom-only rewrite, tier 1 still scores 3/3 on 21 of 53 tickets (down
+from 49) and 0/3 on 21. Random guessing among 6 causes is 16.7%; tier 1
+scores 49.1%, roughly 3x chance.
+  db_connection_pool_exhaustion 11, memory_cache_overgrowth 10,
+  network_ingress_queue_exhaustion 9, deploy_healthcheck_misconfiguration 9,
+  auth_signing_key_mismatch 7, disk_log_rotation_gap 7
+The residual leakers cluster hard by cause -- 6 of 21 are
+deploy_healthcheck_misconfiguration, 5 auth_signing_key_mismatch, 4
+disk_log_rotation_gap -- because each cause has one distinctive symptom
+signature. "Pods never become ready" essentially IS a readiness-probe
+problem; "logins fail after a credential change" essentially IS a key
+mismatch. Removing that would require writing tickets that no longer
+describe the incident.
+Consequence for a future session: more T008-style rewriting has little
+headroom left. The structural fix is corpus design -- more distinct root
+causes, and specifically CONFUSABLE PAIRS: two causes that present with
+the SAME symptom and are separable only by evidence the tools return.
+That is what would force a tier to investigate rather than pattern-match,
+and it is the only change that would let the tier-3-vs-tier-4 question
+(J7, currently inconclusive) actually be answered.
