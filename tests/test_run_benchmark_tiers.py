@@ -69,7 +69,7 @@ def test_tier4_default_behaviour_unchanged(tmp_path, monkeypatch):
     }
     assert result["tier"] == 4
     assert result["repeat"] == 0
-    assert result["schema_version"] == 5
+    assert result["schema_version"] == 6
     assert set(result["run"].keys()) == {
         "started_at",
         "wall_clock_seconds",
@@ -140,7 +140,7 @@ def test_tier_run_writes_result_without_state_or_pending_action(
     assert "pending_action" not in result
     assert result["tier"] == tier
     assert result["repeat"] == 0
-    assert result["schema_version"] == 5
+    assert result["schema_version"] == 6
     assert result["baseline"] == payload_fn("T001")
 
     if tier == 2:
@@ -392,7 +392,7 @@ def test_provenance_present_with_all_four_keys_and_schema5(tmp_path, monkeypatch
     assert rc == 0
 
     result = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
-    assert result["schema_version"] == 5
+    assert result["schema_version"] == 6
     assert "provenance" in result
     prov = result["provenance"]
     assert set(prov.keys()) == {"llm_base_url", "llm_model", "llm_api_key_sha8", "git_commit"}
@@ -463,3 +463,180 @@ def test_run_one_direct_call_defaults_provenance_to_none(tmp_path, monkeypatch):
     assert result is not None
     written = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
     assert written["provenance"] is None
+
+
+# ---------------------------------------------------------------------------
+# Fail-fast detection of dead LLM calls (agent/llm.py returns an
+# {"error": ...} dict rather than raising, so a dead credential previously
+# produced a full "successful" sweep of nothing but failed LLM calls).
+# ---------------------------------------------------------------------------
+def _make_scripted_llm(script: dict[str, list[str]]):
+    """Returns a fake call_llm_with_tools that looks up which ticket is
+    currently being processed via a mutable `current` cell the test sets
+    before invoking run_one/main, and pops the next scripted outcome
+    ("ok" or "fail") for that ticket off script[ticket_id]."""
+    state = {"current": None}
+
+    def fake_llm(*args, **kwargs):
+        ticket_id = state["current"]
+        outcomes = script[ticket_id]
+        outcome = outcomes.pop(0)
+        if outcome == "fail":
+            return {"error": f"403 - please check the api-key you provided ({ticket_id})"}
+        from types import SimpleNamespace
+
+        return SimpleNamespace(usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1))
+
+    return fake_llm, state
+
+
+def _scripted_run_plain_llm(state):
+    def run_plain_llm(ticket_id):
+        state["current"] = ticket_id
+        run_benchmark.baselines.call_llm_with_tools({}, [])
+        return _tier1_payload(ticket_id)
+
+    return run_plain_llm
+
+
+def test_all_tickets_fail_every_call_aborts_after_threshold(tmp_path, monkeypatch):
+    ticket_ids = ["T001", "T002", "T003", "T004", "T005"]
+    script = {tid: ["fail"] for tid in ticket_ids}
+    fake_llm, state = _make_scripted_llm(script)
+
+    monkeypatch.setattr(run_benchmark.baselines, "call_llm_with_tools", fake_llm)
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", _scripted_run_plain_llm(state))
+
+    rc = run_benchmark.main(
+        ["--live", "--tier", "1", "--tickets", ",".join(ticket_ids), "--out", str(tmp_path)]
+    )
+    assert rc == 3
+
+    files = sorted(p.name for p in tmp_path.iterdir())
+    assert len(files) == run_benchmark.MAX_CONSECUTIVE_LLM_FAILURES
+    assert files == ["T001.json", "T002.json", "T003.json"]
+
+
+def test_all_tickets_fail_abort_message_contents(tmp_path, monkeypatch, capsys):
+    ticket_ids = ["T001", "T002", "T003", "T004"]
+    script = {tid: ["fail"] for tid in ticket_ids}
+    fake_llm, state = _make_scripted_llm(script)
+
+    monkeypatch.setattr(run_benchmark.baselines, "call_llm_with_tools", fake_llm)
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", _scripted_run_plain_llm(state))
+
+    rc = run_benchmark.main(
+        ["--live", "--tier", "1", "--tickets", ",".join(ticket_ids), "--out", str(tmp_path)]
+    )
+    assert rc == 3
+
+    captured = capsys.readouterr()
+    assert "403 - please check the api-key you provided" in captured.err
+    assert "INVALID" in captured.err
+    assert "3/4" in captured.err or "attempted before abort" in captured.err
+    assert "LLM_BASE_URL" in captured.err
+    assert "LLM_MODEL" in captured.err
+
+
+def test_two_consecutive_full_failures_then_success_does_not_abort(tmp_path, monkeypatch):
+    ticket_ids = ["T001", "T002", "T003"]
+    script = {"T001": ["fail"], "T002": ["fail"], "T003": ["ok"]}
+    fake_llm, state = _make_scripted_llm(script)
+
+    monkeypatch.setattr(run_benchmark.baselines, "call_llm_with_tools", fake_llm)
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", _scripted_run_plain_llm(state))
+
+    rc = run_benchmark.main(
+        ["--live", "--tier", "1", "--tickets", ",".join(ticket_ids), "--out", str(tmp_path)]
+    )
+    assert rc == 0
+
+    files = sorted(p.name for p in tmp_path.iterdir())
+    assert files == ["T001.json", "T002.json", "T003.json"]
+
+
+def test_partial_failure_does_not_count_toward_consecutive_abort(tmp_path, monkeypatch):
+    ticket_ids = ["T001", "T002", "T003", "T004", "T005"]
+    # Every ticket has one failing call and one succeeding call -- a
+    # PARTIAL failure -- repeated well past the abort threshold. None of
+    # these should count toward the consecutive-all-failed streak.
+    script = {tid: ["fail", "ok"] for tid in ticket_ids}
+    fake_llm, state = _make_scripted_llm(script)
+
+    def run_plain_llm(ticket_id):
+        state["current"] = ticket_id
+        run_benchmark.baselines.call_llm_with_tools({}, [])
+        run_benchmark.baselines.call_llm_with_tools({}, [])
+        return _tier1_payload(ticket_id)
+
+    monkeypatch.setattr(run_benchmark.baselines, "call_llm_with_tools", fake_llm)
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", run_plain_llm)
+
+    rc = run_benchmark.main(
+        ["--live", "--tier", "1", "--tickets", ",".join(ticket_ids), "--out", str(tmp_path)]
+    )
+    assert rc == 0
+
+    files = sorted(p.name for p in tmp_path.iterdir())
+    assert len(files) == 5
+
+    result = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
+    assert result["usage"]["failed_calls"] == 1
+    assert result["usage"]["llm_call_count"] == 2
+    assert result["usage"]["last_error"] is not None
+
+
+def test_partial_failure_reported_in_progress_line(tmp_path, monkeypatch, capsys):
+    script = {"T001": ["fail", "ok"]}
+    fake_llm, state = _make_scripted_llm(script)
+
+    def run_plain_llm(ticket_id):
+        state["current"] = ticket_id
+        run_benchmark.baselines.call_llm_with_tools({}, [])
+        run_benchmark.baselines.call_llm_with_tools({}, [])
+        return _tier1_payload(ticket_id)
+
+    monkeypatch.setattr(run_benchmark.baselines, "call_llm_with_tools", fake_llm)
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", run_plain_llm)
+
+    rc = run_benchmark.main(["--live", "--tier", "1", "--tickets", "T001", "--out", str(tmp_path)])
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert "llm_failures=1/2" in captured.err
+
+
+def test_usage_failed_calls_and_last_error_persist_schema6(tmp_path, monkeypatch):
+    script = {"T001": ["fail"]}
+    fake_llm, state = _make_scripted_llm(script)
+
+    def run_plain_llm(ticket_id):
+        state["current"] = ticket_id
+        run_benchmark.baselines.call_llm_with_tools({}, [])
+        return _tier1_payload(ticket_id)
+
+    monkeypatch.setattr(run_benchmark.baselines, "call_llm_with_tools", fake_llm)
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", run_plain_llm)
+
+    rc = run_benchmark.main(["--live", "--tier", "1", "--tickets", "T001", "--out", str(tmp_path)])
+    assert rc == 0
+
+    result = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
+    assert result["schema_version"] == 6
+    assert result["usage"]["failed_calls"] == 1
+    assert "403" in result["usage"]["last_error"]
+
+
+def test_normal_all_success_sweep_summary_line_unchanged(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", lambda tid: _tier1_payload(tid))
+
+    rc = run_benchmark.main(
+        ["--live", "--tier", "1", "--tickets", "T001,T002", "--out", str(tmp_path)]
+    )
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    last_line = [ln for ln in captured.err.strip().splitlines() if ln][-1]
+    assert last_line.startswith("2 run, 0 crashed, total wall clock")
+    assert "llm failures" not in last_line
+    assert "tickets with LLM failures" not in last_line

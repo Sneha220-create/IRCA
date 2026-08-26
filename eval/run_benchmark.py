@@ -107,6 +107,19 @@ TICKETS_PATH = REPO_ROOT / "data" / "tickets.json"
 DEFAULT_OUT_DIR = REPO_ROOT / "eval" / "results" / "raw"
 ARCHIVE_ROOT = REPO_ROOT / "eval" / "results" / "runs"
 
+# How many CONSECUTIVE tickets may have every single LLM call fail before the
+# sweep aborts outright. This exists because agent/llm.py returns an
+# {"error": ...} dict on failure rather than raising, so a dead credential
+# (revoked key, wrong LLM_BASE_URL/LLM_MODEL) previously produced a full
+# multi-hour sweep of "successful" runs whose every answer was actually
+# "LLM call failed: ...". The threshold is a tradeoff: low enough that a
+# dead-credential sweep is caught within seconds (a handful of tickets) of
+# starting rather than burning the whole run, but high enough that a couple
+# of genuinely transient provider errors (rate limit blips, a timeout) on an
+# otherwise-healthy long sweep don't kill it -- the counter resets to 0 the
+# moment any ticket has at least one successful call.
+MAX_CONSECUTIVE_LLM_FAILURES = 3
+
 
 def tickets_content_sha256(path: Path) -> str:
     """Hashes the PARSED, canonically re-serialized JSON content of a
@@ -150,6 +163,8 @@ class _UsageTracker:
 
     def __init__(self) -> None:
         self.call_count = 0
+        self.failed_calls = 0
+        self.last_error: str | None = None
         self.total_tokens_in = 0
         self.total_tokens_out = 0
         self.per_call: list[dict] = []
@@ -158,10 +173,14 @@ class _UsageTracker:
         self.call_count += 1
         tokens_in = 0
         tokens_out = 0
-        usage = getattr(response, "usage", None)
-        if usage is not None:
-            tokens_in = getattr(usage, "prompt_tokens", 0) or 0
-            tokens_out = getattr(usage, "completion_tokens", 0) or 0
+        if isinstance(response, dict) and "error" in response:
+            self.failed_calls += 1
+            self.last_error = str(response["error"])
+        else:
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                tokens_in = getattr(usage, "prompt_tokens", 0) or 0
+                tokens_out = getattr(usage, "completion_tokens", 0) or 0
         self.total_tokens_in += tokens_in
         self.total_tokens_out += tokens_out
         self.per_call.append({"in": tokens_in, "out": tokens_out})
@@ -169,6 +188,8 @@ class _UsageTracker:
     def as_dict(self) -> dict:
         return {
             "llm_call_count": self.call_count,
+            "failed_calls": self.failed_calls,
+            "last_error": self.last_error,
             "total_tokens_in": self.total_tokens_in,
             "total_tokens_out": self.total_tokens_out,
             "per_call": self.per_call,
@@ -404,7 +425,7 @@ def run_one(
         wall_clock_seconds = round(time.perf_counter() - start, 3)
 
         result = {
-            "schema_version": 5,
+            "schema_version": 6,
             "tier": tier,
             "repeat": repeat,
             "ticket_id": ticket_id,
@@ -454,7 +475,7 @@ def run_one(
         wall_clock_seconds = round(time.perf_counter() - start, 3)
 
         result = {
-            "schema_version": 5,
+            "schema_version": 6,
             "tier": tier,
             "repeat": repeat,
             "ticket_id": ticket_id,
@@ -484,6 +505,9 @@ def run_one(
         "status": final_status,
         "wall_clock_seconds": wall_clock_seconds,
         "tier": tier,
+        "llm_failed_calls": usage.get("failed_calls", 0),
+        "llm_total_calls": usage.get("llm_call_count", 0),
+        "llm_last_error": usage.get("last_error"),
     }
 
 
@@ -707,6 +731,9 @@ def main(argv: list[str] | None = None) -> int:
 
     total = len(selected)
     n_crashed = 0
+    tickets_with_llm_failures = 0
+    total_failed_calls = 0
+    consecutive_all_failed = 0
     overall_start = time.perf_counter()
 
     for i, ticket in enumerate(selected, start=1):
@@ -723,15 +750,54 @@ def main(argv: list[str] | None = None) -> int:
         crashed_note = " (crashed)" if summary["crashed"] else ""
         if summary["crashed"]:
             n_crashed += 1
+
+        llm_failed = summary["llm_failed_calls"]
+        llm_total = summary["llm_total_calls"]
+        llm_failures_note = ""
+        if llm_failed > 0:
+            tickets_with_llm_failures += 1
+            total_failed_calls += llm_failed
+            llm_failures_note = f" llm_failures={llm_failed}/{llm_total}"
+
         print(
             f"[{i}/{total}] {summary['ticket_id']} tier={summary['tier']} status={status} "
-            f"wall_clock={summary['wall_clock_seconds']:.3f}s{crashed_note}",
+            f"wall_clock={summary['wall_clock_seconds']:.3f}s{crashed_note}{llm_failures_note}",
             file=sys.stderr,
         )
 
+        # A ticket where EVERY LLM call failed (not just some) counts toward
+        # the consecutive-abort streak; a partial failure or a fully clean
+        # ticket resets it -- see MAX_CONSECUTIVE_LLM_FAILURES's comment for
+        # the tradeoff behind the threshold.
+        if llm_total > 0 and llm_failed == llm_total:
+            consecutive_all_failed += 1
+        else:
+            consecutive_all_failed = 0
+
+        if consecutive_all_failed >= MAX_CONSECUTIVE_LLM_FAILURES:
+            print(
+                "\n"
+                f"ABORTING sweep: {consecutive_all_failed} consecutive tickets had EVERY "
+                "LLM call fail. This is the signature of a dead credential or provider "
+                "misconfiguration, not a real diagnosis result.\n"
+                f"  most recent error: {summary['llm_last_error']}\n"
+                f"  tickets attempted before abort: {i}/{total}\n"
+                f"  {i} result file(s) were written to {out_dir} and are INVALID -- "
+                "they contain LLM-failure output, not real diagnoses -- discard them.\n"
+                "  Check the API credential / LLM_BASE_URL / LLM_MODEL before rerunning.",
+                file=sys.stderr,
+            )
+            return 3
+
     overall_wall_clock = round(time.perf_counter() - overall_start, 3)
+    failure_note = ""
+    if tickets_with_llm_failures > 0:
+        failure_note = (
+            f", {tickets_with_llm_failures} tickets with LLM failures "
+            f"({total_failed_calls} failed calls)"
+        )
     print(
-        f"{total} run, {n_crashed} crashed, total wall clock {overall_wall_clock:.3f}s",
+        f"{total} run, {n_crashed} crashed, total wall clock {overall_wall_clock:.3f}s{failure_note}",
         file=sys.stderr,
     )
     return 0

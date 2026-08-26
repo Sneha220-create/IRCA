@@ -36,8 +36,8 @@ def test_happy_path_writes_expected_file(tmp_path, monkeypatch):
     assert out_path.exists()
     result = json.loads(out_path.read_text(encoding="utf-8"))
 
-    # schema_version bumped 4 -> 5 alongside the provenance addition.
-    assert result["schema_version"] == 5
+    # schema_version bumped 5 -> 6 alongside the LLM-failure-tracking addition.
+    assert result["schema_version"] == 6
     assert result["ticket_id"] == "T001"
     assert result["tier"] == 4
     assert result["repeat"] == 0
