@@ -37,6 +37,7 @@ import os
 import re
 from pathlib import Path
 
+from eval.run_benchmark import tickets_content_sha256
 from tools import fake_data
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -197,7 +198,12 @@ def audit_tickets(tickets_path: Path, tier_compare_path: Path) -> dict:
 
     aggregate = _build_aggregate(rows, tier_compare_available)
 
+    tickets_path = Path(tickets_path)
     return {
+        "config": {
+            "tickets_path": str(tickets_path),
+            "tickets_sha256": tickets_content_sha256(tickets_path),
+        },
         "tier_compare_available": tier_compare_available,
         "audited_count": len(rows),
         "rows": rows,
@@ -302,15 +308,19 @@ def _print_summary(result: dict) -> None:
             )
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Audit ticket text for gold root-cause leakage.")
-    parser.add_argument("--tickets", type=Path, default=DEFAULT_TICKETS_PATH)
+    # Resolved lazily (default=None -> fake_data.resolve_tickets_path() at
+    # call time) so IRCA_TICKETS_PATH set after import/parser-construction
+    # is still honoured.
+    parser.add_argument("--tickets", type=Path, default=None)
     parser.add_argument("--tier-compare", type=Path, default=DEFAULT_TIER_COMPARE_PATH)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT_PATH)
     parser.add_argument("--markdown", type=Path, default=None)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    result = audit_tickets(args.tickets, args.tier_compare)
+    tickets_path = args.tickets if args.tickets is not None else fake_data.resolve_tickets_path()
+    result = audit_tickets(tickets_path, args.tier_compare)
     _persist_result(result, args.out)
     if args.markdown:
         _write_markdown(result, args.markdown)

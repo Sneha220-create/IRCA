@@ -29,6 +29,7 @@ Usage (from repo root, using the repo's venv):
     venv/bin/python -m eval.run_benchmark --live --no-archive
     venv/bin/python -m eval.run_benchmark --live --tier 2
     venv/bin/python -m eval.run_benchmark --live --tier 3 --repeat 1
+    venv/bin/python -m eval.run_benchmark --live --tickets-path data/tickets_symptom_only.json
 
 Flags:
     --live         REQUIRED. Without it, the script refuses to run (see
@@ -53,6 +54,16 @@ Flags:
     --no-archive   Skip archiving pre-existing *.json files in the out dir
                    before this sweep. Off by default -- archiving is the
                    safe default; this is only for cheap iteration.
+    --tickets-path PATH
+                   Path to an alternate ticket-set JSON file, used instead
+                   of the default data/tickets.json. Relative paths resolve
+                   against the repo root, not the process cwd. Sets
+                   IRCA_TICKETS_PATH so every tier module's
+                   fake_data.get_ticket() sees the same set as this
+                   runner's own ticket loading -- selection and per-ticket
+                   text can never disagree. The resolved path and a content
+                   sha256 (parsed-JSON, line-ending invariant) are recorded in every result file under
+                   run.tickets_path / run.tickets_sha256.
 
 Output: one file per ticket at {out}/{ticket_id}.json (pretty-printed,
 indent=2). Tickets are run SEQUENTIALLY and each file is written immediately
@@ -73,6 +84,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import shutil
@@ -86,11 +98,25 @@ import agent.approval as approval
 import agent.baselines as baselines
 import agent.orchestrator as orchestrator
 import agent.single_pass as single_pass
+from tools.fake_data import TICKETS_PATH_ENV, resolve_tickets_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TICKETS_PATH = REPO_ROOT / "data" / "tickets.json"
 DEFAULT_OUT_DIR = REPO_ROOT / "eval" / "results" / "raw"
 ARCHIVE_ROOT = REPO_ROOT / "eval" / "results" / "runs"
+
+
+def tickets_content_sha256(path: Path) -> str:
+    """Hashes the PARSED, canonically re-serialized JSON content of a
+    ticket-set file rather than its raw bytes, so the hash is invariant to
+    line endings (CRLF vs LF) and to incidental whitespace/key-order
+    reformatting. Raw-byte hashing made the same ticket set hash
+    differently on Windows vs Linux checkouts, which made tier_compare
+    abort a valid comparison as a "mixed ticket set".
+    """
+    text = Path(path).read_text(encoding="utf-8")
+    canonical = json.dumps(json.loads(text), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 # Per-tier module owning the call_llm_with_tools binding that _usage_shim
 # must patch -- see _usage_shim's docstring for why the patch target has to
@@ -191,7 +217,7 @@ def _usage_shim(module=orchestrator):
 
 
 def _load_tickets() -> list[dict]:
-    return json.loads(TICKETS_PATH.read_text(encoding="utf-8"))
+    return json.loads(resolve_tickets_path().read_text(encoding="utf-8"))
 
 
 def _select_tickets(
@@ -264,7 +290,14 @@ def _default_out_dir(tier: int) -> Path:
     return REPO_ROOT / "eval" / "results" / f"tier{tier}"
 
 
-def run_one(ticket: dict, out_dir: Path, tier: int = 4, repeat: int = 0) -> dict:
+def run_one(
+    ticket: dict,
+    out_dir: Path,
+    tier: int = 4,
+    repeat: int = 0,
+    tickets_path: str | None = None,
+    tickets_sha256: str | None = None,
+) -> dict:
     """Run a single ticket through the given capability tier, write its
     result file, and return a small summary dict used for the stderr
     progress line."""
@@ -312,7 +345,7 @@ def run_one(ticket: dict, out_dir: Path, tier: int = 4, repeat: int = 0) -> dict
         wall_clock_seconds = round(time.perf_counter() - start, 3)
 
         result = {
-            "schema_version": 3,
+            "schema_version": 4,
             "tier": tier,
             "repeat": repeat,
             "ticket_id": ticket_id,
@@ -320,6 +353,8 @@ def run_one(ticket: dict, out_dir: Path, tier: int = 4, repeat: int = 0) -> dict
                 "started_at": started_at,
                 "wall_clock_seconds": wall_clock_seconds,
                 "runner_error": runner_error,
+                "tickets_path": tickets_path,
+                "tickets_sha256": tickets_sha256,
             },
             "ticket": _denormalized_ticket(ticket),
             "state": state_dump,
@@ -356,7 +391,7 @@ def run_one(ticket: dict, out_dir: Path, tier: int = 4, repeat: int = 0) -> dict
         wall_clock_seconds = round(time.perf_counter() - start, 3)
 
         result = {
-            "schema_version": 3,
+            "schema_version": 4,
             "tier": tier,
             "repeat": repeat,
             "ticket_id": ticket_id,
@@ -364,6 +399,8 @@ def run_one(ticket: dict, out_dir: Path, tier: int = 4, repeat: int = 0) -> dict
                 "started_at": started_at,
                 "wall_clock_seconds": wall_clock_seconds,
                 "runner_error": runner_error,
+                "tickets_path": tickets_path,
+                "tickets_sha256": tickets_sha256,
             },
             "ticket": _denormalized_ticket(ticket),
             "baseline": baseline_dump,
@@ -532,7 +569,24 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip archiving pre-existing *.json files in the out dir before this sweep.",
     )
+    parser.add_argument(
+        "--tickets-path",
+        type=str,
+        default=None,
+        help=(
+            "Path to an alternate ticket-set JSON file, used instead of the "
+            "default data/tickets.json. Relative paths resolve against the "
+            "repo root, not the process cwd. Sets IRCA_TICKETS_PATH so every "
+            "tier module's fake_data.get_ticket() sees the same set as this "
+            "runner. The resolved path and a content sha256 (parsed-JSON, "
+            "recorded in every result file under run.tickets_path / "
+            "run.tickets_sha256."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.tickets_path is not None:
+        os.environ[TICKETS_PATH_ENV] = args.tickets_path
 
     if not args.live:
         print(
@@ -552,10 +606,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
+        resolved_tickets_path = resolve_tickets_path()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
         tickets = _load_tickets()
     except (OSError, json.JSONDecodeError) as exc:
-        print(f"Error: could not read {TICKETS_PATH}: {exc}", file=sys.stderr)
+        print(f"Error: could not read {resolved_tickets_path}: {exc}", file=sys.stderr)
         return 2
+
+    tickets_sha256 = tickets_content_sha256(resolved_tickets_path)
 
     ticket_ids = args.tickets.split(",") if args.tickets is not None else None
     try:
@@ -579,7 +641,14 @@ def main(argv: list[str] | None = None) -> int:
     overall_start = time.perf_counter()
 
     for i, ticket in enumerate(selected, start=1):
-        summary = run_one(ticket, out_dir, tier=args.tier, repeat=args.repeat)
+        summary = run_one(
+            ticket,
+            out_dir,
+            tier=args.tier,
+            repeat=args.repeat,
+            tickets_path=str(resolved_tickets_path),
+            tickets_sha256=tickets_sha256,
+        )
         status = summary["status"]
         crashed_note = " (crashed)" if summary["crashed"] else ""
         if summary["crashed"]:

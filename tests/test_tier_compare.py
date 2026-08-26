@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -5,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from eval import llm_judge, tier_compare
+from eval.run_benchmark import tickets_content_sha256
 
 
 # ---------------------------------------------------------------------------
@@ -551,3 +553,235 @@ def test_interrupted_run_keeps_earlier_verdicts(tmp_path):
     assert cache_path.exists()
     cache = json.loads(cache_path.read_text(encoding="utf-8"))
     assert len(cache) >= tier_compare.CACHE_FLUSH_EVERY
+
+
+# ---------------------------------------------------------------------------
+# Ticket-set inference from result files (run.tickets_path / tickets_sha256)
+# ---------------------------------------------------------------------------
+
+
+def _write_temp_tickets(path: Path, tickets: list[dict]) -> str:
+    path.write_text(json.dumps(tickets), encoding="utf-8")
+    return tickets_content_sha256(path)
+
+
+def _schema4_result(tier, ticket_id, answer, tickets_path, tickets_sha256, repeat=0):
+    return {
+        "schema_version": 4,
+        "tier": tier,
+        "repeat": repeat,
+        "ticket_id": ticket_id,
+        "run": {
+            "wall_clock_seconds": 1.0,
+            "tickets_path": tickets_path,
+            "tickets_sha256": tickets_sha256,
+        },
+        "usage": {"llm_call_count": 1, "total_tokens_in": 10, "total_tokens_out": 10},
+        "baseline": {"final_answer": answer} if answer is not None else None,
+    }
+
+
+def test_resolve_ticket_source_all_agree_scores_against_temp_file(tmp_path, capsys):
+    temp_tickets_path = tmp_path / "temp_tickets.json"
+    temp_tickets = [
+        {
+            "id": "T001",
+            "category": "easy",
+            "ticket_text": "Checkout API returning 500s under load.",
+            "gold_root_cause": "totally_different_gold_cause_from_temp_file",
+            "expected_behavior": "resolve_with_approval",
+        }
+    ]
+    sha = _write_temp_tickets(temp_tickets_path, temp_tickets)
+
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(
+            _schema4_result(1, "T001", "the answer", str(temp_tickets_path), sha)
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = tier_compare.resolve_ticket_source(root)
+    assert resolved == temp_tickets_path
+    captured = capsys.readouterr()
+    assert str(temp_tickets_path) in captured.err
+    assert sha in captured.err
+
+    # Prove scoring actually reflects the temp file's gold, not
+    # data/tickets.json's -- this is the test that actually proves the fix.
+    captured_gold = []
+
+    def fake_semantic(ticket_text, category, hypothesis, gold_root_cause):
+        captured_gold.append(gold_root_cause)
+        return True, "ok", None
+
+    tickets_by_id = tier_compare.load_tickets(resolved)
+    with patch.object(llm_judge, "judge_semantic_match_once", side_effect=fake_semantic):
+        tier_compare.score_all(root, tickets_by_id, tiers=None, no_cache=True)
+
+    assert captured_gold == ["totally_different_gold_cause_from_temp_file"]
+
+
+def test_resolve_ticket_source_mixed_sha256_aborts(tmp_path):
+    tickets_a = tmp_path / "a.json"
+    tickets_b = tmp_path / "b.json"
+    sha_a = _write_temp_tickets(tickets_a, [{"id": "T001"}])
+    sha_b = _write_temp_tickets(tickets_b, [{"id": "T002"}])
+
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_schema4_result(1, "T001", "a1", str(tickets_a), sha_a)), encoding="utf-8"
+    )
+    (root / "tier1" / "T002.json").write_text(
+        json.dumps(_schema4_result(1, "T002", "b1", str(tickets_b), sha_b)), encoding="utf-8"
+    )
+
+    with pytest.raises(tier_compare.TicketSourceError) as excinfo:
+        tier_compare.resolve_ticket_source(root)
+
+    msg = str(excinfo.value)
+    assert sha_a in msg
+    assert sha_b in msg
+    assert "1 file" in msg
+
+
+def test_resolve_ticket_source_mixed_schema_aborts(tmp_path):
+    tickets_a = tmp_path / "a.json"
+    sha_a = _write_temp_tickets(tickets_a, [{"id": "T001"}])
+
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_schema4_result(1, "T001", "a1", str(tickets_a), sha_a)), encoding="utf-8"
+    )
+    # Pre-4 result, no run.tickets_path/tickets_sha256.
+    (root / "tier1" / "T002.json").write_text(
+        json.dumps(_baseline_result(1, "T002", "old answer")), encoding="utf-8"
+    )
+
+    with pytest.raises(tier_compare.TicketSourceError):
+        tier_compare.resolve_ticket_source(root)
+
+
+def test_resolve_ticket_source_all_pre4_falls_back_to_default(tmp_path, capsys):
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_baseline_result(1, "T001", "old answer")), encoding="utf-8"
+    )
+
+    resolved = tier_compare.resolve_ticket_source(root)
+    assert resolved == tier_compare.TICKETS_PATH
+    captured = capsys.readouterr()
+    assert "warning" in captured.err.lower()
+    assert "schema_version 4" in captured.err
+
+
+def test_resolve_ticket_source_recorded_path_missing_aborts(tmp_path):
+    missing_path = tmp_path / "does_not_exist.json"
+    sha = hashlib.sha256(b"[]").hexdigest()
+
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_schema4_result(1, "T001", "a1", str(missing_path), sha)), encoding="utf-8"
+    )
+
+    with pytest.raises(tier_compare.TicketSourceError) as excinfo:
+        tier_compare.resolve_ticket_source(root)
+    assert "does not exist" in str(excinfo.value) or "no longer exist" in str(excinfo.value)
+
+
+def test_resolve_ticket_source_override_wins_and_warns(tmp_path, capsys):
+    override_path = tmp_path / "override.json"
+    override_path.write_text("[]", encoding="utf-8")
+
+    root = tmp_path / "root"  # does not even need to exist
+
+    resolved = tier_compare.resolve_ticket_source(root, tickets_path_override=str(override_path))
+    assert resolved == override_path
+    captured = capsys.readouterr()
+    assert "override" in captured.err.lower()
+
+
+def test_resolve_ticket_source_override_missing_file_aborts(tmp_path):
+    override_path = tmp_path / "nope.json"
+    root = tmp_path / "root"
+
+    with pytest.raises(tier_compare.TicketSourceError):
+        tier_compare.resolve_ticket_source(root, tickets_path_override=str(override_path))
+
+
+def test_resolve_ticket_source_line_ending_variants_not_treated_as_mixed(tmp_path, capsys):
+    # Same logical ticket content, written with CRLF and with LF, at two
+    # different paths. Hashed with the shared content-based helper, these
+    # must agree -- the regression this guards against is raw-byte hashing
+    # treating a CRLF checkout and an LF checkout of the same tickets.json
+    # as a "mixed ticket set" and aborting a valid comparison.
+    tickets = [{"id": "T001", "category": "easy"}]
+    text = json.dumps(tickets)
+
+    crlf_path = tmp_path / "crlf_tickets.json"
+    lf_path = tmp_path / "lf_tickets.json"
+    crlf_path.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+    lf_path.write_bytes(text.replace("\r\n", "\n").encode("utf-8"))
+
+    sha_crlf = tickets_content_sha256(crlf_path)
+    sha_lf = tickets_content_sha256(lf_path)
+    assert sha_crlf == sha_lf
+
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_schema4_result(1, "T001", "crlf answer", str(crlf_path), sha_crlf)),
+        encoding="utf-8",
+    )
+    (root / "tier1" / "T002.json").write_text(
+        json.dumps(_schema4_result(1, "T002", "lf answer", str(lf_path), sha_lf)),
+        encoding="utf-8",
+    )
+
+    # Both result files agree on tickets_sha256 but disagree on
+    # tickets_path -- resolve_ticket_source should still refuse (a
+    # tickets_path mismatch is a real disagreement), but importantly it
+    # must NOT abort at the sha256 stage, proving the two line-ending
+    # variants were not treated as a "mixed ticket set" on hash grounds.
+    with pytest.raises(tier_compare.TicketSourceError) as excinfo:
+        tier_compare.resolve_ticket_source(root)
+    assert "disagree on tickets_path" in str(excinfo.value)
+
+
+def test_main_without_live_runs_ticket_inference_first(tmp_path, capsys):
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_baseline_result(1, "T001", "old answer")), encoding="utf-8"
+    )
+    code = tier_compare.main(["--root", str(root)])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "warning" in captured.err.lower()
+
+
+def test_main_aborts_nonzero_on_mixed_ticket_source(tmp_path, capsys):
+    tickets_a = tmp_path / "a.json"
+    tickets_b = tmp_path / "b.json"
+    sha_a = _write_temp_tickets(tickets_a, [{"id": "T001"}])
+    sha_b = _write_temp_tickets(tickets_b, [{"id": "T002"}])
+
+    root = tmp_path / "root"
+    (root / "tier1").mkdir(parents=True)
+    (root / "tier1" / "T001.json").write_text(
+        json.dumps(_schema4_result(1, "T001", "a1", str(tickets_a), sha_a)), encoding="utf-8"
+    )
+    (root / "tier1" / "T002.json").write_text(
+        json.dumps(_schema4_result(1, "T002", "b1", str(tickets_b), sha_b)), encoding="utf-8"
+    )
+
+    code = tier_compare.main(["--root", str(root), "--live"])
+    assert code != 0
+    captured = capsys.readouterr()
+    assert "error" in captured.err.lower()

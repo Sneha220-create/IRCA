@@ -40,6 +40,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from eval import llm_judge, metrics, report
+from eval.run_benchmark import tickets_content_sha256
 
 TICKETS_PATH = REPO_ROOT / "data" / "tickets.json"
 
@@ -74,10 +75,118 @@ Z_95 = 1.959963984540054
 # ---------------------------------------------------------------------------
 
 
-def load_tickets() -> dict[str, dict]:
-    with open(TICKETS_PATH, encoding="utf-8") as f:
+def load_tickets(tickets_path: Path = TICKETS_PATH) -> dict[str, dict]:
+    with open(tickets_path, encoding="utf-8") as f:
         tickets = json.load(f)
     return {t["id"]: t for t in tickets}
+
+
+class TicketSourceError(Exception):
+    """Raised when the ticket set that produced a batch of result files
+    cannot be safely inferred -- e.g. the files disagree on which ticket
+    set produced them, or the recorded path no longer exists on disk.
+    Scoring must never proceed on an ambiguous or stale ticket source."""
+
+
+def resolve_ticket_source(root: Path, tickets_path_override: str | None = None) -> Path:
+    """Determines which ticket set produced the result files under
+    ``root``, using each result's own ``run.tickets_path`` /
+    ``run.tickets_sha256`` (persisted starting at schema_version 4) rather
+    than the env var or a hardcoded constant -- the result files state
+    which ticket set produced them, which is strictly more reliable than
+    an ambient env var at scoring time.
+
+    - ``--tickets-path`` override: used as-is, skipping inference entirely.
+    - All schema_version>=4 files agree on tickets_sha256: that path is used.
+    - They disagree: raises TicketSourceError (never scores a mixed set).
+    - All files predate schema_version 4 (no tickets_path recorded): falls
+      back to the default data/tickets.json, with a stderr warning.
+    - A mix of pre-4 and >=4 files: treated as a disagreement, raises.
+    - No result files at all: falls back to the default, with a warning.
+    """
+    if tickets_path_override:
+        override_path = Path(tickets_path_override)
+        print(
+            f"[tickets] operator override via --tickets-path: using {override_path} "
+            "(ticket-set inference from result files was skipped)",
+            file=sys.stderr,
+        )
+        if not override_path.is_file():
+            raise TicketSourceError(f"--tickets-path {override_path} does not exist")
+        return override_path
+
+    records = discover_results(root, tiers=None) if root.exists() else []
+
+    pre4_count = 0
+    entries: list[tuple[str, str]] = []  # (tickets_path, tickets_sha256)
+    for rec in records:
+        result = rec["result"]
+        run_info = result.get("run") or {}
+        tp = run_info.get("tickets_path")
+        tsha = run_info.get("tickets_sha256")
+        schema_version = result.get("schema_version")
+        if schema_version is None or schema_version < 4 or tp is None or tsha is None:
+            pre4_count += 1
+        else:
+            entries.append((tp, tsha))
+
+    if not records:
+        print(
+            f"[tickets] no result files found under {root}; assuming default ticket set "
+            f"{TICKETS_PATH}",
+            file=sys.stderr,
+        )
+        return TICKETS_PATH
+
+    if pre4_count and entries:
+        raise TicketSourceError(
+            f"result files under {root} are a mix of schema_version<4 (no tickets_path "
+            f"recorded, {pre4_count} file(s)) and schema_version>=4 (tickets_path recorded, "
+            f"{len(entries)} file(s)). Cannot safely infer a single ticket set -- refusing to score."
+        )
+
+    if pre4_count and not entries:
+        print(
+            f"[tickets] warning: all {pre4_count} result file(s) under {root} predate "
+            f"schema_version 4 (no tickets_path/tickets_sha256 recorded); assuming the default "
+            f"ticket set {TICKETS_PATH}",
+            file=sys.stderr,
+        )
+        return TICKETS_PATH
+
+    by_sha: dict[str, list[str]] = {}
+    for tp, tsha in entries:
+        by_sha.setdefault(tsha, []).append(tp)
+    if len(by_sha) > 1:
+        detail = "; ".join(f"sha256={sha}: {len(paths)} file(s)" for sha, paths in sorted(by_sha.items()))
+        raise TicketSourceError(
+            f"result files under {root} disagree on which ticket set produced them "
+            f"({detail}). Refusing to score a mixed ticket set."
+        )
+
+    resolved_tickets_sha256, paths_for_sha = next(iter(by_sha.items()))
+    distinct_paths = sorted(set(paths_for_sha))
+    if len(distinct_paths) > 1:
+        detail = ", ".join(distinct_paths)
+        raise TicketSourceError(
+            f"result files under {root} agree on tickets_sha256={resolved_tickets_sha256} "
+            f"but disagree on tickets_path ({detail}). Refusing to score a mixed ticket set."
+        )
+
+    resolved_path = Path(distinct_paths[0])
+    if not resolved_path.is_file():
+        raise TicketSourceError(
+            f"result files under {root} record tickets_path={resolved_path} "
+            f"(sha256={resolved_tickets_sha256}), but that file no longer exists on disk. "
+            "Refusing to silently fall back to the default ticket set."
+        )
+
+    print(
+        f"[tickets] resolved ticket set from result files: {resolved_path} "
+        f"(sha256={resolved_tickets_sha256})",
+        file=sys.stderr,
+    )
+    return resolved_path
 
 
 # ---------------------------------------------------------------------------
@@ -725,8 +834,14 @@ def build_tier4_only(records: list[dict], tickets_by_id: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def run(root: Path, out_path: Path, tiers: list[int] | None, no_cache: bool) -> dict:
-    tickets_by_id = load_tickets()
+def run(
+    root: Path,
+    out_path: Path,
+    tiers: list[int] | None,
+    no_cache: bool,
+    tickets_path: Path = TICKETS_PATH,
+) -> dict:
+    tickets_by_id = load_tickets(tickets_path)
     scored = score_all(root, tickets_by_id, tiers, no_cache)
 
     rate_card_label, rate_card = report.select_rate_card(os.environ.get("LLM_BASE_URL"))
@@ -819,10 +934,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=str, default=str(DEFAULT_OUT))
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--live", action="store_true")
+    parser.add_argument(
+        "--tickets-path",
+        type=str,
+        default=None,
+        help="Operator override: skip ticket-set inference from result files and use this path.",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root)
     tiers = [int(t.strip()) for t in args.tiers.split(",")] if args.tiers else None
+
+    try:
+        resolved_tickets_path = resolve_ticket_source(root, args.tickets_path)
+    except TicketSourceError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     if not args.live:
         records = discover_results(root, tiers) if root.exists() else []
@@ -837,7 +964,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    output = run(root, Path(args.out), tiers, args.no_cache)
+    output = run(root, Path(args.out), tiers, args.no_cache, tickets_path=resolved_tickets_path)
     print_summary(output)
     print(f"wrote {args.out}")
     return 0

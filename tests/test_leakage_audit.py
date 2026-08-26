@@ -4,6 +4,7 @@ import os
 import pytest
 
 from eval import leakage_audit
+from eval.run_benchmark import tickets_content_sha256
 
 
 def _write_tickets(path, tickets):
@@ -269,3 +270,57 @@ def test_aggregates_correct_on_small_synthetic_set(tmp_path):
     assert agg["per_category_counts"]["tool_heavy"]["unknown"] == 1
     # all three tickets have lexical overlap via the base ticket text/gold slug
     assert agg["n_with_lexical_overlap"] == 3
+
+
+# ---------------------------------------------------------------------------
+# config key + IRCA_TICKETS_PATH honoured by the CLI
+# ---------------------------------------------------------------------------
+
+
+def test_audit_tickets_config_carries_resolved_path_and_sha256(tmp_path):
+    tickets = [_base_ticket(id="T900")]
+    tickets_path = tmp_path / "tickets.json"
+    _write_tickets(tickets_path, tickets)
+
+    result = leakage_audit.audit_tickets(tickets_path, tmp_path / "no_such_tier_compare.json")
+
+    expected_sha = tickets_content_sha256(tickets_path)
+    assert result["config"]["tickets_path"] == str(tickets_path)
+    assert result["config"]["tickets_sha256"] == expected_sha
+
+
+@pytest.fixture
+def _clean_tickets_env():
+    yield
+    os.environ.pop("IRCA_TICKETS_PATH", None)
+
+
+def test_main_honours_irca_tickets_path_env_var(tmp_path, _clean_tickets_env):
+    ticket_only_in_temp_file = _base_ticket(id="T999", category="easy")
+    tickets_path = tmp_path / "temp_tickets.json"
+    _write_tickets(tickets_path, [ticket_only_in_temp_file])
+
+    os.environ["IRCA_TICKETS_PATH"] = str(tickets_path)
+
+    out_path = tmp_path / "leakage_audit_out.json"
+    leakage_audit.main(["--tier-compare", str(tmp_path / "missing.json"), "--out", str(out_path)])
+
+    result = json.loads(out_path.read_text(encoding="utf-8"))
+    ids = {row["ticket_id"] for row in result["rows"]}
+    assert ids == {"T999"}
+
+
+def test_main_output_config_reflects_env_ticket_set(tmp_path, _clean_tickets_env):
+    tickets = [_base_ticket(id="T900")]
+    tickets_path = tmp_path / "temp_tickets.json"
+    _write_tickets(tickets_path, tickets)
+
+    os.environ["IRCA_TICKETS_PATH"] = str(tickets_path)
+
+    out_path = tmp_path / "leakage_audit_out.json"
+    leakage_audit.main(["--tier-compare", str(tmp_path / "missing.json"), "--out", str(out_path)])
+
+    result = json.loads(out_path.read_text(encoding="utf-8"))
+    expected_sha = tickets_content_sha256(tickets_path)
+    assert result["config"]["tickets_path"] == str(tickets_path)
+    assert result["config"]["tickets_sha256"] == expected_sha

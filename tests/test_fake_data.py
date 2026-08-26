@@ -1,9 +1,16 @@
 import json
 
+import pytest
+
+import tools.fake_data as fake_data
 from tools.fake_data import (
     METRIC_PROFILES,
     ROOT_CAUSE_SIGNATURES,
     TICKETS_PATH,
+    TICKETS_PATH_ENV,
+    get_ticket,
+    load_tickets,
+    resolve_tickets_path,
     signature_for_ticket,
 )
 
@@ -117,3 +124,77 @@ def test_integer_metrics_flagged():
         "ingress_listen_queue_depth",
         "request_count",
     }
+
+
+# --- Switchable ticket-set path -----------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clear_ticket_env_and_cache(monkeypatch):
+    monkeypatch.delenv(TICKETS_PATH_ENV, raising=False)
+    fake_data._load_tickets_cached.cache_clear()
+    yield
+    fake_data._load_tickets_cached.cache_clear()
+
+
+def test_resolve_tickets_path_default_when_env_unset():
+    assert resolve_tickets_path() == TICKETS_PATH
+    assert load_tickets() == _all_tickets()
+
+
+def test_env_var_switches_ticket_set(tmp_path, monkeypatch):
+    alt_tickets = [{"id": "TX01", "gold_root_cause": "db_connection_pool_exhaustion"}]
+    alt_path = tmp_path / "alt_tickets.json"
+    alt_path.write_text(json.dumps(alt_tickets), encoding="utf-8")
+
+    monkeypatch.setenv(TICKETS_PATH_ENV, str(alt_path))
+
+    assert resolve_tickets_path() == alt_path
+    assert load_tickets() == alt_tickets
+    assert get_ticket("TX01") == alt_tickets[0]
+    assert get_ticket("T001") is None
+
+
+def test_env_var_nonexistent_path_raises(monkeypatch, tmp_path):
+    missing = tmp_path / "does_not_exist.json"
+    monkeypatch.setenv(TICKETS_PATH_ENV, str(missing))
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        load_tickets()
+
+    message = str(exc_info.value)
+    assert TICKETS_PATH_ENV in message
+    assert str(missing) in message
+
+    # Must not silently fall back to the default ticket set.
+    default_ids = {t["id"] for t in _all_tickets()}
+    try:
+        result_ids = {t["id"] for t in load_tickets()}
+    except FileNotFoundError:
+        result_ids = None
+    assert result_ids != default_ids
+
+
+def test_env_var_relative_path_resolves_against_repo_root(tmp_path, monkeypatch):
+    alt_tickets = [{"id": "TX02", "gold_root_cause": None}]
+    rel_dir = fake_data.REPO_ROOT / "_tmp_test_ticket_set_dir"
+    rel_dir.mkdir(exist_ok=True)
+    alt_path = rel_dir / "alt.json"
+    try:
+        alt_path.write_text(json.dumps(alt_tickets), encoding="utf-8")
+
+        monkeypatch.setenv(TICKETS_PATH_ENV, "_tmp_test_ticket_set_dir/alt.json")
+        monkeypatch.chdir(tmp_path)
+
+        resolved = resolve_tickets_path()
+        assert resolved == alt_path
+        assert load_tickets() == alt_tickets
+    finally:
+        alt_path.unlink(missing_ok=True)
+        rel_dir.rmdir()
+
+
+def test_env_var_empty_string_treated_as_unset(monkeypatch):
+    monkeypatch.setenv(TICKETS_PATH_ENV, "")
+    assert resolve_tickets_path() == TICKETS_PATH
+    assert load_tickets() == _all_tickets()

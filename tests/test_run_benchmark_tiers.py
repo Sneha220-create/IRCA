@@ -6,11 +6,27 @@ entry point is stubbed, no network."""
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
 from agent.state import TaskState
 from eval import run_benchmark
+from tools.fake_data import TICKETS_PATH_ENV
+
+
+@pytest.fixture(autouse=True)
+def _clear_tickets_env():
+    # Plain os.environ, deliberately not monkeypatch: run_benchmark.main()
+    # sets IRCA_TICKETS_PATH directly via os.environ (see --tickets-path),
+    # bypassing monkeypatch's own change tracking. If this fixture used
+    # monkeypatch.delenv to clean up, monkeypatch's own auto-revert (which
+    # runs AFTER this fixture's teardown, since this fixture depends on the
+    # monkeypatch fixture) would restore whatever monkeypatch last recorded
+    # -- undoing this cleanup and leaking the env var into later tests.
+    os.environ.pop(TICKETS_PATH_ENV, None)
+    yield
+    os.environ.pop(TICKETS_PATH_ENV, None)
 
 
 def _canned_state(ticket_id="T001"):
@@ -52,8 +68,19 @@ def test_tier4_default_behaviour_unchanged(tmp_path, monkeypatch):
     }
     assert result["tier"] == 4
     assert result["repeat"] == 0
-    assert result["schema_version"] == 3
-    assert set(result["run"].keys()) == {"started_at", "wall_clock_seconds", "runner_error"}
+    assert result["schema_version"] == 4
+    assert set(result["run"].keys()) == {
+        "started_at",
+        "wall_clock_seconds",
+        "runner_error",
+        "tickets_path",
+        "tickets_sha256",
+    }
+    assert result["run"]["tickets_path"] == str(run_benchmark.TICKETS_PATH)
+    assert (
+        result["run"]["tickets_sha256"]
+        == run_benchmark.tickets_content_sha256(run_benchmark.TICKETS_PATH)
+    )
     assert set(result["ticket"].keys()) == set(run_benchmark.TICKET_DENORM_FIELDS)
     assert result["state"] == _canned_state("T001").model_dump()
 
@@ -112,7 +139,7 @@ def test_tier_run_writes_result_without_state_or_pending_action(
     assert "pending_action" not in result
     assert result["tier"] == tier
     assert result["repeat"] == 0
-    assert result["schema_version"] == 3
+    assert result["schema_version"] == 4
     assert result["baseline"] == payload_fn("T001")
 
     if tier == 2:
@@ -209,3 +236,145 @@ def test_usage_shim_patches_baselines_module_for_tier2(tmp_path, monkeypatch):
     assert result["usage"]["llm_call_count"] == 2
     assert result["usage"]["total_tokens_in"] == 6
     assert result["usage"]["total_tokens_out"] == 4
+
+
+# ---------------------------------------------------------------------------
+# --tickets-path: switchable ticket-set file
+# ---------------------------------------------------------------------------
+def _alt_tickets():
+    return [
+        {
+            "id": "TX01",
+            "description": "alt ticket one",
+            "category": "database",
+            "gold_root_cause": "db_connection_pool_exhaustion",
+            "gold_runbook_id": "RB-DB-001",
+            "required_tools": [],
+            "expected_behavior": None,
+            "min_confidence_evidence_sources": 1,
+        },
+        {
+            "id": "TX02",
+            "description": "alt ticket two",
+            "category": "database",
+            "gold_root_cause": "db_connection_pool_exhaustion",
+            "gold_runbook_id": "RB-DB-001",
+            "required_tools": [],
+            "expected_behavior": None,
+            "min_confidence_evidence_sources": 1,
+        },
+    ]
+
+
+def test_tickets_path_flag_runs_exactly_those_tickets(tmp_path, monkeypatch):
+    alt_path = tmp_path / "alt_tickets.json"
+    alt_path.write_text(json.dumps(_alt_tickets()), encoding="utf-8")
+    out_dir = tmp_path / "out"
+
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", lambda tid: _tier1_payload(tid))
+
+    rc = run_benchmark.main(
+        ["--live", "--tier", "1", "--tickets-path", str(alt_path), "--out", str(out_dir)]
+    )
+    assert rc == 0
+
+    files = sorted(p.name for p in out_dir.iterdir())
+    assert files == ["TX01.json", "TX02.json"]
+
+    expected_hash = run_benchmark.tickets_content_sha256(alt_path)
+    for name in files:
+        result = json.loads((out_dir / name).read_text(encoding="utf-8"))
+        assert result["run"]["tickets_path"] == str(alt_path)
+        assert result["run"]["tickets_sha256"] == expected_hash
+
+
+def test_default_run_still_uses_default_tickets_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_benchmark.orchestrator, "run_agent_loop", lambda tid: _canned_state(tid))
+
+    rc = run_benchmark.main(["--live", "--out", str(tmp_path)])
+    assert rc == 0
+
+    files = sorted(p.name for p in tmp_path.iterdir())
+    assert len(files) == 63
+
+    expected_hash = run_benchmark.tickets_content_sha256(run_benchmark.TICKETS_PATH)
+    result = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
+    assert result["run"]["tickets_path"] == str(run_benchmark.TICKETS_PATH)
+    assert result["run"]["tickets_sha256"] == expected_hash
+
+
+def test_tickets_path_flag_propagates_to_tier_modules_get_ticket(tmp_path, monkeypatch):
+    """The whole point of --tickets-path: tier modules that call
+    fake_data.get_ticket() internally must see the alternate ticket text,
+    not just the runner's own selection."""
+    alt_tickets = _alt_tickets()
+    alt_tickets[0]["description"] = "UNIQUE ALT TEXT MARKER"
+    alt_path = tmp_path / "alt_tickets.json"
+    alt_path.write_text(json.dumps(alt_tickets), encoding="utf-8")
+    out_dir = tmp_path / "out"
+
+    seen_descriptions = []
+
+    def fake_run_plain_llm(ticket_id):
+        ticket = run_benchmark.baselines.get_ticket(ticket_id)
+        seen_descriptions.append(ticket["description"] if ticket else None)
+        return _tier1_payload(ticket_id)
+
+    monkeypatch.setattr(run_benchmark.baselines, "run_plain_llm", fake_run_plain_llm)
+
+    rc = run_benchmark.main(
+        [
+            "--live",
+            "--tier",
+            "1",
+            "--tickets-path",
+            str(alt_path),
+            "--tickets",
+            "TX01",
+            "--out",
+            str(out_dir),
+        ]
+    )
+    assert rc == 0
+    assert seen_descriptions == ["UNIQUE ALT TEXT MARKER"]
+
+
+# ---------------------------------------------------------------------------
+# tickets_content_sha256 -- content-based, line-ending-invariant hashing.
+# Regression test for the CRLF/LF cross-platform hashing bug: raw-byte
+# hashing made the same ticket set hash differently on Windows (CRLF) vs
+# Linux (LF) checkouts.
+# ---------------------------------------------------------------------------
+
+
+def test_tickets_content_sha256_invariant_to_line_endings(tmp_path):
+    tickets = _alt_tickets()
+    text = json.dumps(tickets, indent=2)
+
+    crlf_path = tmp_path / "crlf.json"
+    lf_path = tmp_path / "lf.json"
+    crlf_path.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+    lf_path.write_bytes(text.replace("\r\n", "\n").encode("utf-8"))
+
+    assert run_benchmark.tickets_content_sha256(crlf_path) == run_benchmark.tickets_content_sha256(lf_path)
+
+
+def test_tickets_content_sha256_differs_for_different_content(tmp_path):
+    a_path = tmp_path / "a.json"
+    b_path = tmp_path / "b.json"
+    tickets = _alt_tickets()
+    a_path.write_text(json.dumps(tickets), encoding="utf-8")
+    tickets[0]["description"] = "a different description entirely"
+    b_path.write_text(json.dumps(tickets), encoding="utf-8")
+
+    assert run_benchmark.tickets_content_sha256(a_path) != run_benchmark.tickets_content_sha256(b_path)
+
+
+def test_tickets_content_sha256_invariant_to_whitespace_and_key_order(tmp_path):
+    tickets = _alt_tickets()
+    compact_path = tmp_path / "compact.json"
+    pretty_path = tmp_path / "pretty.json"
+    compact_path.write_text(json.dumps(tickets, separators=(",", ":")), encoding="utf-8")
+    pretty_path.write_text(json.dumps(tickets, indent=4, sort_keys=False), encoding="utf-8")
+
+    assert run_benchmark.tickets_content_sha256(compact_path) == run_benchmark.tickets_content_sha256(pretty_path)

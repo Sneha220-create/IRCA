@@ -11,9 +11,39 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 from pathlib import Path
 
-TICKETS_PATH = Path(__file__).resolve().parents[1] / "data" / "tickets.json"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TICKETS_PATH = REPO_ROOT / "data" / "tickets.json"
+TICKETS_PATH_ENV = "IRCA_TICKETS_PATH"
+
+
+def resolve_tickets_path() -> Path:
+    """Resolve the ticket-set file to read, at call time.
+
+    If IRCA_TICKETS_PATH is set (and non-empty) in the environment, that
+    path is used instead of the default data/tickets.json -- resolved
+    against the repo root, not the process cwd, so a sweep launched from a
+    different directory behaves identically. A relative path is joined onto
+    REPO_ROOT; an absolute path is used as-is.
+
+    If the env var is set but points at a file that does not exist, this
+    raises rather than silently falling back to the default -- a silent
+    fallback would run a whole paid sweep against the wrong ticket set.
+    """
+    raw = os.environ.get(TICKETS_PATH_ENV)
+    if not raw:
+        return TICKETS_PATH
+    path = Path(raw)
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"{TICKETS_PATH_ENV} is set to {raw!r} (resolved to {path}), "
+            f"but that file does not exist."
+        )
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -241,9 +271,13 @@ METRIC_PROFILES: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 # Ticket loading
 # ---------------------------------------------------------------------------
-@functools.lru_cache(maxsize=1)
+@functools.lru_cache(maxsize=None)
+def _load_tickets_cached(path_str: str) -> list[dict]:
+    return json.loads(Path(path_str).read_text(encoding="utf-8"))
+
+
 def load_tickets() -> list[dict]:
-    return json.loads(TICKETS_PATH.read_text(encoding="utf-8"))
+    return _load_tickets_cached(str(resolve_tickets_path()))
 
 
 def get_ticket(ticket_id: str) -> dict | None:
