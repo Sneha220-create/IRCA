@@ -1133,7 +1133,14 @@ def render_markdown(report: dict) -> str:
 
         lines.append("### Tier-4-only metrics")
         for name, entry in tc.get("tier4_only", {}).items():
-            lines.append(f"- {name}: tier4={entry} | tiers_1_3: {entry.get('tiers_1_3')}")
+            if name == "parameter_validity":
+                lines.append(
+                    f"- parameter_validity: {entry['observed_failures']} argument-validation "
+                    f"failures in {entry['total_calls']} tool calls (not a rate -- "
+                    f"measurable=False by design) | tiers_1_3: {entry.get('tiers_1_3')}"
+                )
+            else:
+                lines.append(f"- {name}: tier4={entry} | tiers_1_3: {entry.get('tiers_1_3')}")
         lines.append("")
 
     lines.append("## Known Issues (documented)")

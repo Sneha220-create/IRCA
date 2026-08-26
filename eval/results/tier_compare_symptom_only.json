@@ -35,8 +35,8 @@
     "rubric_version": 3,
     "model": "openai/gpt-oss-120b",
     "judge_temperature": 0.0,
-    "n_judge_calls_made": 752,
-    "n_cache_hits": 4
+    "n_judge_calls_made": 0,
+    "n_cache_hits": 756
   },
   "rate_card": {
     "provider": "Baseten (openai/gpt-oss-120b, rates confirmed == Groq card by project owner on 2026-08-23)",
@@ -44,20 +44,20 @@
   },
   "primary": {
     "1": {
-      "rag_heavy": {
+      "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.75,
-          0.375,
-          0.5
+          0.5,
+          0.6,
+          0.6
         ],
-        "median": 0.5,
-        "min": 0.375,
-        "max": 0.75,
-        "n_success_total": 13,
-        "n_trials_total": 24,
-        "wilson_lo": 0.3507486535891948,
-        "wilson_hi": 0.72108666268789
+        "median": 0.6,
+        "min": 0.5,
+        "max": 0.6,
+        "n_success_total": 17,
+        "n_trials_total": 30,
+        "wilson_lo": 0.3919730700081361,
+        "wilson_hi": 0.7262251442353347
       },
       "easy": {
         "n_repeats": 3,
@@ -74,35 +74,20 @@
         "wilson_lo": 0.4117613449352105,
         "wilson_hi": 0.6906106996500242
       },
-      "tool_heavy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.5,
-          0.6,
-          0.6
+          0.75,
+          0.375,
+          0.5
         ],
-        "median": 0.6,
-        "min": 0.5,
-        "max": 0.6,
-        "n_success_total": 17,
-        "n_trials_total": 30,
-        "wilson_lo": 0.3919730700081361,
-        "wilson_hi": 0.7262251442353347
-      },
-      "overall": {
-        "n_repeats": 3,
-        "per_repeat": [
-          0.5283018867924528,
-          0.49056603773584906,
-          0.49056603773584906
-        ],
-        "median": 0.49056603773584906,
-        "min": 0.49056603773584906,
-        "max": 0.5283018867924528,
-        "n_success_total": 80,
-        "n_trials_total": 159,
-        "wilson_lo": 0.4262764840783059,
-        "wilson_hi": 0.5798644582053242
+        "median": 0.5,
+        "min": 0.375,
+        "max": 0.75,
+        "n_success_total": 13,
+        "n_trials_total": 24,
+        "wilson_lo": 0.3507486535891948,
+        "wilson_hi": 0.72108666268789
       },
       "multi_step": {
         "n_repeats": 3,
@@ -118,23 +103,38 @@
         "n_trials_total": 60,
         "wilson_lo": 0.30064278558341617,
         "wilson_hi": 0.5427191897735989
+      },
+      "overall": {
+        "n_repeats": 3,
+        "per_repeat": [
+          0.5283018867924528,
+          0.49056603773584906,
+          0.49056603773584906
+        ],
+        "median": 0.49056603773584906,
+        "min": 0.49056603773584906,
+        "max": 0.5283018867924528,
+        "n_success_total": 80,
+        "n_trials_total": 159,
+        "wilson_lo": 0.4262764840783059,
+        "wilson_hi": 0.5798644582053242
       }
     },
     "2": {
-      "rag_heavy": {
+      "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.625,
-          0.5,
-          0.75
+          0.7,
+          0.7,
+          0.8
         ],
-        "median": 0.625,
-        "min": 0.5,
-        "max": 0.75,
-        "n_success_total": 15,
-        "n_trials_total": 24,
-        "wilson_lo": 0.4270996244267427,
-        "wilson_hi": 0.7884063244045122
+        "median": 0.7,
+        "min": 0.7,
+        "max": 0.8,
+        "n_success_total": 22,
+        "n_trials_total": 30,
+        "wilson_lo": 0.555520383048111,
+        "wilson_hi": 0.8581733668040368
       },
       "easy": {
         "n_repeats": 3,
@@ -151,35 +151,20 @@
         "wilson_lo": 0.5896116224686505,
         "wilson_hi": 0.8403509647893348
       },
-      "tool_heavy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.7,
-          0.7,
-          0.8
+          0.625,
+          0.5,
+          0.75
         ],
-        "median": 0.7,
-        "min": 0.7,
-        "max": 0.8,
-        "n_success_total": 22,
-        "n_trials_total": 30,
-        "wilson_lo": 0.555520383048111,
-        "wilson_hi": 0.8581733668040368
-      },
-      "overall": {
-        "n_repeats": 3,
-        "per_repeat": [
-          0.6415094339622641,
-          0.660377358490566,
-          0.660377358490566
-        ],
-        "median": 0.660377358490566,
-        "min": 0.6415094339622641,
-        "max": 0.660377358490566,
-        "n_success_total": 104,
-        "n_trials_total": 159,
-        "wilson_lo": 0.577304930677612,
-        "wilson_hi": 0.7236012412202597
+        "median": 0.625,
+        "min": 0.5,
+        "max": 0.75,
+        "n_success_total": 15,
+        "n_trials_total": 24,
+        "wilson_lo": 0.4270996244267427,
+        "wilson_hi": 0.7884063244045122
       },
       "multi_step": {
         "n_repeats": 3,
@@ -195,23 +180,38 @@
         "n_trials_total": 60,
         "wilson_lo": 0.44103438776125564,
         "wilson_hi": 0.6842760319531322
+      },
+      "overall": {
+        "n_repeats": 3,
+        "per_repeat": [
+          0.6415094339622641,
+          0.660377358490566,
+          0.660377358490566
+        ],
+        "median": 0.660377358490566,
+        "min": 0.6415094339622641,
+        "max": 0.660377358490566,
+        "n_success_total": 104,
+        "n_trials_total": 159,
+        "wilson_lo": 0.577304930677612,
+        "wilson_hi": 0.7236012412202597
       }
     },
     "3": {
-      "rag_heavy": {
+      "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          1.0,
-          1.0,
-          1.0
+          0.9,
+          0.8,
+          0.9
         ],
-        "median": 1.0,
-        "min": 1.0,
-        "max": 1.0,
-        "n_success_total": 24,
-        "n_trials_total": 24,
-        "wilson_lo": 0.8620237953250198,
-        "wilson_hi": 1.0
+        "median": 0.9,
+        "min": 0.8,
+        "max": 0.9,
+        "n_success_total": 26,
+        "n_trials_total": 30,
+        "wilson_lo": 0.703186733179637,
+        "wilson_hi": 0.9469034451594526
       },
       "easy": {
         "n_repeats": 3,
@@ -228,35 +228,20 @@
         "wilson_lo": 0.8517248923056439,
         "wilson_hi": 0.9877258732932802
       },
-      "tool_heavy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.9,
-          0.8,
-          0.9
+          1.0,
+          1.0,
+          1.0
         ],
-        "median": 0.9,
-        "min": 0.8,
-        "max": 0.9,
-        "n_success_total": 26,
-        "n_trials_total": 30,
-        "wilson_lo": 0.703186733179637,
-        "wilson_hi": 0.9469034451594526
-      },
-      "overall": {
-        "n_repeats": 3,
-        "per_repeat": [
-          0.9811320754716981,
-          0.9245283018867925,
-          0.9245283018867925
-        ],
-        "median": 0.9245283018867925,
-        "min": 0.9245283018867925,
-        "max": 0.9811320754716981,
-        "n_success_total": 150,
-        "n_trials_total": 159,
-        "wilson_lo": 0.8959348401114677,
-        "wilson_hi": 0.9699380218803676
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "n_success_total": 24,
+        "n_trials_total": 24,
+        "wilson_lo": 0.8620237953250198,
+        "wilson_hi": 1.0
       },
       "multi_step": {
         "n_repeats": 3,
@@ -272,23 +257,38 @@
         "n_trials_total": 60,
         "wilson_lo": 0.8629948352365148,
         "wilson_hi": 0.9828504978356043
+      },
+      "overall": {
+        "n_repeats": 3,
+        "per_repeat": [
+          0.9811320754716981,
+          0.9245283018867925,
+          0.9245283018867925
+        ],
+        "median": 0.9245283018867925,
+        "min": 0.9245283018867925,
+        "max": 0.9811320754716981,
+        "n_success_total": 150,
+        "n_trials_total": 159,
+        "wilson_lo": 0.8959348401114677,
+        "wilson_hi": 0.9699380218803676
       }
     },
     "4": {
-      "rag_heavy": {
+      "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.875,
-          1.0,
-          0.875
+          0.8,
+          0.8,
+          0.9
         ],
-        "median": 0.875,
-        "min": 0.875,
-        "max": 1.0,
-        "n_success_total": 22,
-        "n_trials_total": 24,
-        "wilson_lo": 0.741511978067893,
-        "wilson_hi": 0.9768411847029566
+        "median": 0.8,
+        "min": 0.8,
+        "max": 0.9,
+        "n_success_total": 25,
+        "n_trials_total": 30,
+        "wilson_lo": 0.6643564949358397,
+        "wilson_hi": 0.9266345762815145
       },
       "easy": {
         "n_repeats": 3,
@@ -305,35 +305,20 @@
         "wilson_lo": 0.7926642466571064,
         "wilson_hi": 0.9648888832736299
       },
-      "tool_heavy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.8,
-          0.8,
-          0.9
+          0.875,
+          1.0,
+          0.875
         ],
-        "median": 0.8,
-        "min": 0.8,
-        "max": 0.9,
-        "n_success_total": 25,
-        "n_trials_total": 30,
-        "wilson_lo": 0.6643564949358397,
-        "wilson_hi": 0.9266345762815145
-      },
-      "overall": {
-        "n_repeats": 3,
-        "per_repeat": [
-          0.8679245283018868,
-          0.9056603773584906,
-          0.9245283018867925
-        ],
-        "median": 0.9056603773584906,
-        "min": 0.8679245283018868,
-        "max": 0.9245283018867925,
-        "n_success_total": 143,
-        "n_trials_total": 159,
-        "wilson_lo": 0.8427933347715683,
-        "wilson_hi": 0.9371063352494465
+        "median": 0.875,
+        "min": 0.875,
+        "max": 1.0,
+        "n_success_total": 22,
+        "n_trials_total": 24,
+        "wilson_lo": 0.741511978067893,
+        "wilson_hi": 0.9768411847029566
       },
       "multi_step": {
         "n_repeats": 3,
@@ -349,6 +334,21 @@
         "n_trials_total": 60,
         "wilson_lo": 0.8193105798166559,
         "wilson_hi": 0.9638795433982693
+      },
+      "overall": {
+        "n_repeats": 3,
+        "per_repeat": [
+          0.8679245283018868,
+          0.9056603773584906,
+          0.9245283018867925
+        ],
+        "median": 0.9056603773584906,
+        "min": 0.8679245283018868,
+        "max": 0.9245283018867925,
+        "n_success_total": 143,
+        "n_trials_total": 159,
+        "wilson_lo": 0.8427933347715683,
+        "wilson_hi": 0.9371063352494465
       }
     }
   },
@@ -423,69 +423,69 @@
   "comparisons": {
     "primary": {
       "1": {
-        "rag_heavy": {
+        "tool_heavy": {
           "verdict": "tier4_ahead",
-          "detail": "tier4 range [0.875, 1.000] is entirely above the other tier's range [0.375, 0.750]"
+          "detail": "tier4 range [0.800, 0.900] is entirely above the other tier's range [0.500, 0.600]"
         },
         "easy": {
           "verdict": "tier4_ahead",
           "detail": "tier4 range [0.867, 1.000] is entirely above the other tier's range [0.533, 0.600]"
         },
-        "tool_heavy": {
+        "rag_heavy": {
           "verdict": "tier4_ahead",
-          "detail": "tier4 range [0.800, 0.900] is entirely above the other tier's range [0.500, 0.600]"
-        },
-        "overall": {
-          "verdict": "tier4_ahead",
-          "detail": "tier4 range [0.868, 0.925] is entirely above the other tier's range [0.491, 0.528]"
+          "detail": "tier4 range [0.875, 1.000] is entirely above the other tier's range [0.375, 0.750]"
         },
         "multi_step": {
           "verdict": "tier4_ahead",
           "detail": "tier4 range [0.900, 0.950] is entirely above the other tier's range [0.400, 0.450]"
+        },
+        "overall": {
+          "verdict": "tier4_ahead",
+          "detail": "tier4 range [0.868, 0.925] is entirely above the other tier's range [0.491, 0.528]"
         }
       },
       "2": {
-        "rag_heavy": {
-          "verdict": "tier4_ahead",
-          "detail": "tier4 range [0.875, 1.000] is entirely above the other tier's range [0.500, 0.750]"
+        "tool_heavy": {
+          "verdict": "inconclusive",
+          "detail": "overlapping ranges: tier4 [0.800, 0.900] vs other [0.700, 0.800]; separating them needs more repeats"
         },
         "easy": {
           "verdict": "tier4_ahead",
           "detail": "tier4 range [0.867, 1.000] is entirely above the other tier's range [0.667, 0.800]"
         },
-        "tool_heavy": {
-          "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.800, 0.900] vs other [0.700, 0.800]; separating them needs more repeats"
-        },
-        "overall": {
+        "rag_heavy": {
           "verdict": "tier4_ahead",
-          "detail": "tier4 range [0.868, 0.925] is entirely above the other tier's range [0.642, 0.660]"
+          "detail": "tier4 range [0.875, 1.000] is entirely above the other tier's range [0.500, 0.750]"
         },
         "multi_step": {
           "verdict": "tier4_ahead",
           "detail": "tier4 range [0.900, 0.950] is entirely above the other tier's range [0.550, 0.600]"
+        },
+        "overall": {
+          "verdict": "tier4_ahead",
+          "detail": "tier4 range [0.868, 0.925] is entirely above the other tier's range [0.642, 0.660]"
         }
       },
       "3": {
-        "rag_heavy": {
+        "tool_heavy": {
           "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.875, 1.000] vs other [1.000, 1.000]; separating them needs more repeats"
+          "detail": "overlapping ranges: tier4 [0.800, 0.900] vs other [0.800, 0.900]; separating them needs more repeats"
         },
         "easy": {
           "verdict": "inconclusive",
           "detail": "overlapping ranges: tier4 [0.867, 1.000] vs other [0.867, 1.000]; separating them needs more repeats"
         },
-        "tool_heavy": {
+        "rag_heavy": {
           "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.800, 0.900] vs other [0.800, 0.900]; separating them needs more repeats"
-        },
-        "overall": {
-          "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.868, 0.925] vs other [0.925, 0.981]; separating them needs more repeats"
+          "detail": "overlapping ranges: tier4 [0.875, 1.000] vs other [1.000, 1.000]; separating them needs more repeats"
         },
         "multi_step": {
           "verdict": "inconclusive",
           "detail": "overlapping ranges: tier4 [0.900, 0.950] vs other [0.900, 1.000]; separating them needs more repeats"
+        },
+        "overall": {
+          "verdict": "inconclusive",
+          "detail": "overlapping ranges: tier4 [0.868, 0.925] vs other [0.925, 0.981]; separating them needs more repeats"
         }
       }
     },
@@ -628,9 +628,10 @@
       "tiers_1_3": "n/a (no TaskState)"
     },
     "parameter_validity": {
-      "sum": 0,
-      "n": 189,
-      "mean": 0,
+      "observed_failures": 0,
+      "total_calls": 763,
+      "measurable": false,
+      "note": "measurable=False by design (see eval/metrics.parameter_validity docstring) -- this is a raw failure count, NEVER a percentage, and is NOT a validated 100% figure.",
       "tiers_1_3": "n/a (no TaskState)"
     },
     "state_consistency": {
@@ -6708,6 +6709,6 @@
       "reasoning": "The answer explicitly attributes the fallback read uptick to the scheduled batch job, naming it as the specific root cause. It does not express uncertainty or request further investigation, thus it does not meet the abstention criteria."
     }
   ],
-  "summary": "tier1 vs tier4 [rag_heavy]: tier4_ahead -- tier4 range [0.875, 1.000] is entirely above the other tier's range [0.375, 0.750] tier1 vs tier4 [easy]: tier4_ahead -- tier4 range [0.867, 1.000] is entirely above the other tier's range [0.533, 0.600] tier1 vs tier4 [tool_heavy]: tier4_ahead -- tier4 range [0.800, 0.900] is entirely above the other tier's range [0.500, 0.600] tier1 vs tier4 [overall]: tier4_ahead -- tier4 range [0.868, 0.925] is entirely above the other tier's range [0.491, 0.528] tier1 vs tier4 [multi_step]: tier4_ahead -- tier4 range [0.900, 0.950] is entirely above the other tier's range [0.400, 0.450] tier2 vs tier4 [rag_heavy]: tier4_ahead -- tier4 range [0.875, 1.000] is entirely above the other tier's range [0.500, 0.750] tier2 vs tier4 [easy]: tier4_ahead -- tier4 range [0.867, 1.000] is entirely above the other tier's range [0.667, 0.800] tier2 vs tier4 [overall]: tier4_ahead -- tier4 range [0.868, 0.925] is entirely above the other tier's range [0.642, 0.660] tier2 vs tier4 [multi_step]: tier4_ahead -- tier4 range [0.900, 0.950] is entirely above the other tier's range [0.550, 0.600] tier2 vs tier4 [abstention]: other_ahead -- the other tier's range [0.200, 0.300] is entirely above tier4's range [0.000, 0.000] tier3 vs tier4 [abstention]: other_ahead -- the other tier's range [0.400, 0.600] is entirely above tier4's range [0.000, 0.000]",
+  "summary": "tier1 vs tier4 [tool_heavy]: tier4_ahead -- tier4 range [0.800, 0.900] is entirely above the other tier's range [0.500, 0.600] tier1 vs tier4 [easy]: tier4_ahead -- tier4 range [0.867, 1.000] is entirely above the other tier's range [0.533, 0.600] tier1 vs tier4 [rag_heavy]: tier4_ahead -- tier4 range [0.875, 1.000] is entirely above the other tier's range [0.375, 0.750] tier1 vs tier4 [multi_step]: tier4_ahead -- tier4 range [0.900, 0.950] is entirely above the other tier's range [0.400, 0.450] tier1 vs tier4 [overall]: tier4_ahead -- tier4 range [0.868, 0.925] is entirely above the other tier's range [0.491, 0.528] tier2 vs tier4 [easy]: tier4_ahead -- tier4 range [0.867, 1.000] is entirely above the other tier's range [0.667, 0.800] tier2 vs tier4 [rag_heavy]: tier4_ahead -- tier4 range [0.875, 1.000] is entirely above the other tier's range [0.500, 0.750] tier2 vs tier4 [multi_step]: tier4_ahead -- tier4 range [0.900, 0.950] is entirely above the other tier's range [0.550, 0.600] tier2 vs tier4 [overall]: tier4_ahead -- tier4 range [0.868, 0.925] is entirely above the other tier's range [0.642, 0.660] tier2 vs tier4 [abstention]: other_ahead -- the other tier's range [0.200, 0.300] is entirely above tier4's range [0.000, 0.000] tier3 vs tier4 [abstention]: other_ahead -- the other tier's range [0.400, 0.600] is entirely above tier4's range [0.000, 0.000]",
   "inconclusive_everywhere": false
 }

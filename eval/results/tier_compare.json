@@ -35,8 +35,8 @@
     "rubric_version": 3,
     "model": "openai/gpt-oss-120b",
     "judge_temperature": 0.0,
-    "n_judge_calls_made": 495,
-    "n_cache_hits": 261
+    "n_judge_calls_made": 0,
+    "n_cache_hits": 756
   },
   "rate_card": {
     "provider": "Baseten (openai/gpt-oss-120b, rates confirmed == Groq card by project owner on 2026-08-23)",
@@ -44,21 +44,6 @@
   },
   "primary": {
     "1": {
-      "rag_heavy": {
-        "n_repeats": 3,
-        "per_repeat": [
-          1.0,
-          0.875,
-          1.0
-        ],
-        "median": 1.0,
-        "min": 0.875,
-        "max": 1.0,
-        "n_success_total": 23,
-        "n_trials_total": 24,
-        "wilson_lo": 0.7975819352134406,
-        "wilson_hi": 0.9926065438344941
-      },
       "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
@@ -89,20 +74,20 @@
         "wilson_lo": 0.9285057864250715,
         "wilson_hi": 0.9864946138358042
       },
-      "easy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
           1.0,
-          0.9333333333333333,
+          0.875,
           1.0
         ],
         "median": 1.0,
-        "min": 0.9333333333333333,
+        "min": 0.875,
         "max": 1.0,
-        "n_success_total": 44,
-        "n_trials_total": 45,
-        "wilson_lo": 0.8843331823158513,
-        "wilson_hi": 0.9960664011171668
+        "n_success_total": 23,
+        "n_trials_total": 24,
+        "wilson_lo": 0.7975819352134406,
+        "wilson_hi": 0.9926065438344941
       },
       "multi_step": {
         "n_repeats": 3,
@@ -118,24 +103,24 @@
         "n_trials_total": 60,
         "wilson_lo": 0.8629948352365148,
         "wilson_hi": 0.9828504978356043
-      }
-    },
-    "2": {
-      "rag_heavy": {
+      },
+      "easy": {
         "n_repeats": 3,
         "per_repeat": [
           1.0,
-          1.0,
+          0.9333333333333333,
           1.0
         ],
         "median": 1.0,
-        "min": 1.0,
+        "min": 0.9333333333333333,
         "max": 1.0,
-        "n_success_total": 24,
-        "n_trials_total": 24,
-        "wilson_lo": 0.8620237953250198,
-        "wilson_hi": 1.0
-      },
+        "n_success_total": 44,
+        "n_trials_total": 45,
+        "wilson_lo": 0.8843331823158513,
+        "wilson_hi": 0.9960664011171668
+      }
+    },
+    "2": {
       "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
@@ -166,7 +151,7 @@
         "wilson_lo": 0.9764098230971759,
         "wilson_hi": 1.0
       },
-      "easy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
           1.0,
@@ -176,9 +161,9 @@
         "median": 1.0,
         "min": 1.0,
         "max": 1.0,
-        "n_success_total": 45,
-        "n_trials_total": 45,
-        "wilson_lo": 0.9213484012671117,
+        "n_success_total": 24,
+        "n_trials_total": 24,
+        "wilson_lo": 0.8620237953250198,
         "wilson_hi": 1.0
       },
       "multi_step": {
@@ -195,24 +180,24 @@
         "n_trials_total": 60,
         "wilson_lo": 0.93982814785791,
         "wilson_hi": 0.9999999999999998
-      }
-    },
-    "3": {
-      "rag_heavy": {
+      },
+      "easy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.875,
+          1.0,
           1.0,
           1.0
         ],
         "median": 1.0,
-        "min": 0.875,
+        "min": 1.0,
         "max": 1.0,
-        "n_success_total": 23,
-        "n_trials_total": 24,
-        "wilson_lo": 0.7975819352134406,
-        "wilson_hi": 0.9926065438344941
-      },
+        "n_success_total": 45,
+        "n_trials_total": 45,
+        "wilson_lo": 0.9213484012671117,
+        "wilson_hi": 1.0
+      }
+    },
+    "3": {
       "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
@@ -243,20 +228,20 @@
         "wilson_lo": 0.8959348401114677,
         "wilson_hi": 0.9699380218803676
       },
-      "easy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.9333333333333333,
+          0.875,
           1.0,
-          0.8666666666666667
+          1.0
         ],
-        "median": 0.9333333333333333,
-        "min": 0.8666666666666667,
+        "median": 1.0,
+        "min": 0.875,
         "max": 1.0,
-        "n_success_total": 42,
-        "n_trials_total": 45,
-        "wilson_lo": 0.8214339803640811,
-        "wilson_hi": 0.9770679674007492
+        "n_success_total": 23,
+        "n_trials_total": 24,
+        "wilson_lo": 0.7975819352134406,
+        "wilson_hi": 0.9926065438344941
       },
       "multi_step": {
         "n_repeats": 3,
@@ -272,24 +257,24 @@
         "n_trials_total": 60,
         "wilson_lo": 0.8193105798166559,
         "wilson_hi": 0.9638795433982693
+      },
+      "easy": {
+        "n_repeats": 3,
+        "per_repeat": [
+          0.9333333333333333,
+          1.0,
+          0.8666666666666667
+        ],
+        "median": 0.9333333333333333,
+        "min": 0.8666666666666667,
+        "max": 1.0,
+        "n_success_total": 42,
+        "n_trials_total": 45,
+        "wilson_lo": 0.8214339803640811,
+        "wilson_hi": 0.9770679674007492
       }
     },
     "4": {
-      "rag_heavy": {
-        "n_repeats": 3,
-        "per_repeat": [
-          1.0,
-          1.0,
-          0.875
-        ],
-        "median": 1.0,
-        "min": 0.875,
-        "max": 1.0,
-        "n_success_total": 23,
-        "n_trials_total": 24,
-        "wilson_lo": 0.7975819352134406,
-        "wilson_hi": 0.9926065438344941
-      },
       "tool_heavy": {
         "n_repeats": 3,
         "per_repeat": [
@@ -320,20 +305,20 @@
         "wilson_lo": 0.8803754538082783,
         "wilson_hi": 0.9609336390490368
       },
-      "easy": {
+      "rag_heavy": {
         "n_repeats": 3,
         "per_repeat": [
-          0.9333333333333333,
           1.0,
-          0.9333333333333333
+          1.0,
+          0.875
         ],
-        "median": 0.9333333333333333,
-        "min": 0.9333333333333333,
+        "median": 1.0,
+        "min": 0.875,
         "max": 1.0,
-        "n_success_total": 43,
-        "n_trials_total": 45,
-        "wilson_lo": 0.8517248923056439,
-        "wilson_hi": 0.9877258732932802
+        "n_success_total": 23,
+        "n_trials_total": 24,
+        "wilson_lo": 0.7975819352134406,
+        "wilson_hi": 0.9926065438344941
       },
       "multi_step": {
         "n_repeats": 3,
@@ -349,6 +334,21 @@
         "n_trials_total": 60,
         "wilson_lo": 0.8193105798166559,
         "wilson_hi": 0.9638795433982693
+      },
+      "easy": {
+        "n_repeats": 3,
+        "per_repeat": [
+          0.9333333333333333,
+          1.0,
+          0.9333333333333333
+        ],
+        "median": 0.9333333333333333,
+        "min": 0.9333333333333333,
+        "max": 1.0,
+        "n_success_total": 43,
+        "n_trials_total": 45,
+        "wilson_lo": 0.8517248923056439,
+        "wilson_hi": 0.9877258732932802
       }
     }
   },
@@ -423,69 +423,69 @@
   "comparisons": {
     "primary": {
       "1": {
-        "rag_heavy": {
-          "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.875, 1.000] vs other [0.875, 1.000]; separating them needs more repeats"
-        },
-        "tool_heavy": {
-          "verdict": "other_ahead",
-          "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900]"
-        },
         "overall": {
           "verdict": "other_ahead",
           "detail": "the other tier's range [0.962, 0.981] is entirely above tier4's range [0.906, 0.943]"
         },
-        "easy": {
-          "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.933, 1.000] vs other [0.933, 1.000]; separating them needs more repeats"
-        },
-        "multi_step": {
-          "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.900, 0.950] vs other [0.900, 1.000]; separating them needs more repeats"
-        }
-      },
-      "2": {
-        "rag_heavy": {
-          "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.875, 1.000] vs other [1.000, 1.000]; separating them needs more repeats"
-        },
         "tool_heavy": {
           "verdict": "other_ahead",
           "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900]"
         },
-        "overall": {
-          "verdict": "other_ahead",
-          "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.906, 0.943]"
-        },
-        "easy": {
-          "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.933, 1.000] vs other [1.000, 1.000]; separating them needs more repeats"
-        },
-        "multi_step": {
-          "verdict": "other_ahead",
-          "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.950]"
-        }
-      },
-      "3": {
         "rag_heavy": {
           "verdict": "inconclusive",
           "detail": "overlapping ranges: tier4 [0.875, 1.000] vs other [0.875, 1.000]; separating them needs more repeats"
         },
+        "multi_step": {
+          "verdict": "inconclusive",
+          "detail": "overlapping ranges: tier4 [0.900, 0.950] vs other [0.900, 1.000]; separating them needs more repeats"
+        },
+        "easy": {
+          "verdict": "inconclusive",
+          "detail": "overlapping ranges: tier4 [0.933, 1.000] vs other [0.933, 1.000]; separating them needs more repeats"
+        }
+      },
+      "2": {
+        "overall": {
+          "verdict": "other_ahead",
+          "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.906, 0.943]"
+        },
         "tool_heavy": {
           "verdict": "other_ahead",
           "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900]"
         },
+        "rag_heavy": {
+          "verdict": "inconclusive",
+          "detail": "overlapping ranges: tier4 [0.875, 1.000] vs other [1.000, 1.000]; separating them needs more repeats"
+        },
+        "multi_step": {
+          "verdict": "other_ahead",
+          "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.950]"
+        },
+        "easy": {
+          "verdict": "inconclusive",
+          "detail": "overlapping ranges: tier4 [0.933, 1.000] vs other [1.000, 1.000]; separating them needs more repeats"
+        }
+      },
+      "3": {
         "overall": {
           "verdict": "inconclusive",
           "detail": "overlapping ranges: tier4 [0.906, 0.943] vs other [0.925, 0.962]; separating them needs more repeats"
         },
-        "easy": {
+        "tool_heavy": {
+          "verdict": "other_ahead",
+          "detail": "the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900]"
+        },
+        "rag_heavy": {
           "verdict": "inconclusive",
-          "detail": "overlapping ranges: tier4 [0.933, 1.000] vs other [0.867, 1.000]; separating them needs more repeats"
+          "detail": "overlapping ranges: tier4 [0.875, 1.000] vs other [0.875, 1.000]; separating them needs more repeats"
         },
         "multi_step": {
           "verdict": "inconclusive",
           "detail": "overlapping ranges: tier4 [0.900, 0.950] vs other [0.900, 0.950]; separating them needs more repeats"
+        },
+        "easy": {
+          "verdict": "inconclusive",
+          "detail": "overlapping ranges: tier4 [0.933, 1.000] vs other [0.867, 1.000]; separating them needs more repeats"
         }
       }
     },
@@ -628,9 +628,10 @@
       "tiers_1_3": "n/a (no TaskState)"
     },
     "parameter_validity": {
-      "sum": 0,
-      "n": 189,
-      "mean": 0,
+      "observed_failures": 0,
+      "total_calls": 768,
+      "measurable": false,
+      "note": "measurable=False by design (see eval/metrics.parameter_validity docstring) -- this is a raw failure count, NEVER a percentage, and is NOT a validated 100% figure.",
       "tiers_1_3": "n/a (no TaskState)"
     },
     "state_consistency": {
@@ -6708,6 +6709,6 @@
       "reasoning": "The answer explicitly attributes the cache fallback reads to the scheduled batch job, naming it as the specific root cause. It does not express uncertainty or request further investigation, so it does not meet the abstention criteria."
     }
   ],
-  "summary": "tier1 vs tier4 [tool_heavy]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900] tier1 vs tier4 [overall]: other_ahead -- the other tier's range [0.962, 0.981] is entirely above tier4's range [0.906, 0.943] tier2 vs tier4 [tool_heavy]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900] tier2 vs tier4 [overall]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.906, 0.943] tier2 vs tier4 [multi_step]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.950] tier3 vs tier4 [tool_heavy]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900] tier2 vs tier4 [abstention]: other_ahead -- the other tier's range [0.300, 0.400] is entirely above tier4's range [0.000, 0.000] tier3 vs tier4 [abstention]: other_ahead -- the other tier's range [0.300, 0.400] is entirely above tier4's range [0.000, 0.000]",
+  "summary": "tier1 vs tier4 [overall]: other_ahead -- the other tier's range [0.962, 0.981] is entirely above tier4's range [0.906, 0.943] tier1 vs tier4 [tool_heavy]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900] tier2 vs tier4 [overall]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.906, 0.943] tier2 vs tier4 [tool_heavy]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900] tier2 vs tier4 [multi_step]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.950] tier3 vs tier4 [tool_heavy]: other_ahead -- the other tier's range [1.000, 1.000] is entirely above tier4's range [0.900, 0.900] tier2 vs tier4 [abstention]: other_ahead -- the other tier's range [0.300, 0.400] is entirely above tier4's range [0.000, 0.000] tier3 vs tier4 [abstention]: other_ahead -- the other tier's range [0.300, 0.400] is entirely above tier4's range [0.000, 0.000]",
   "inconclusive_everywhere": false
 }

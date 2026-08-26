@@ -795,8 +795,7 @@ def build_tier4_only(records: list[dict], tickets_by_id: dict) -> dict:
             elif name == "unnecessary_tool_calls":
                 out.append(metrics.unnecessary_tool_calls(state, ticket))
             elif name == "parameter_validity":
-                pv = metrics.parameter_validity(state)
-                out.append(pv["observed_failures"])
+                out.append(metrics.parameter_validity(state))
             elif name == "state_consistency":
                 out.append(metrics.state_consistency(state))
             elif name == "write_gate_appended_correctly":
@@ -816,6 +815,22 @@ def build_tier4_only(records: list[dict], tickets_by_id: dict) -> dict:
     tier4_only = {}
     for name in TIER4_ONLY_METRICS:
         values = _values_for(name)
+        if name == "parameter_validity":
+            observed_failures = sum(v["observed_failures"] for v in values)
+            total_calls = sum(v["total_calls"] for v in values)
+            entry = {
+                "observed_failures": observed_failures,
+                "total_calls": total_calls,
+                "measurable": False,
+                "note": (
+                    "measurable=False by design (see eval/metrics.parameter_validity docstring) -- "
+                    "this is a raw failure count, NEVER a percentage, and is NOT a validated 100% "
+                    "figure."
+                ),
+            }
+            entry["tiers_1_3"] = "n/a (no TaskState)"
+            tier4_only[name] = entry
+            continue
         bool_values = [v for v in values if isinstance(v, bool)]
         num_values = [v for v in values if not isinstance(v, bool) and isinstance(v, (int, float))]
         if bool_values:

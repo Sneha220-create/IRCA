@@ -315,6 +315,151 @@ def test_tier4_only_carries_na_marker(tmp_path):
         assert tier4_only[name]["tiers_1_3"] == "n/a (no TaskState)"
 
 
+def _tier4_result_with_calls(ticket_id, hypothesis, trajectory, status="resolved", repeat=0):
+    result = _tier4_result(ticket_id, hypothesis, status=status, repeat=repeat)
+    result["state"]["trajectory"] = trajectory
+    return result
+
+
+def test_tier4_only_parameter_validity_is_structured_not_bare_int(tmp_path):
+    root = tmp_path / "root"
+    (root / "tier4").mkdir(parents=True)
+    trajectory = [
+        {"tool_call": {"tool": "query_logs"}, "observation": {"status": "ok"}, "iteration": 0},
+        {"tool_call": {"tool": "query_metrics"}, "observation": {"status": "invalid_args"}, "iteration": 0},
+    ]
+    (root / "tier4" / "T001.json").write_text(
+        json.dumps(_tier4_result_with_calls("T001", "the disk is full", trajectory)), encoding="utf-8"
+    )
+    tickets_by_id = {"T001": TICKET_A}
+    records = tier_compare.discover_results(root, tiers=None)
+    tier4_only = tier_compare.build_tier4_only(records, tickets_by_id)
+    entry = tier4_only["parameter_validity"]
+    assert not isinstance(entry, int)
+    assert entry["observed_failures"] == 1
+    assert entry["total_calls"] == 2
+    assert entry["measurable"] is False
+    assert "note" in entry
+    assert "not a percentage" in entry["note"] or "never a percentage" in entry["note"].lower() or "NEVER a percentage" in entry["note"]
+    assert entry["tiers_1_3"] == "n/a (no TaskState)"
+
+
+def test_tier4_only_parameter_validity_sums_across_multiple_results(tmp_path):
+    root = tmp_path / "root"
+    (root / "tier4").mkdir(parents=True)
+    traj_a = [
+        {"tool_call": {"tool": "query_logs"}, "observation": {"status": "ok"}, "iteration": 0},
+        {"tool_call": {"tool": "query_metrics"}, "observation": {"status": "invalid_args"}, "iteration": 0},
+    ]
+    traj_b = [
+        {"tool_call": {"tool": "query_logs"}, "observation": {"status": "ok"}, "iteration": 0},
+        {"tool_call": {"tool": "query_logs"}, "observation": {"status": "ok"}, "iteration": 0},
+        {"tool_call": {"tool": "query_metrics"}, "observation": {"status": "argument_error"}, "iteration": 0},
+    ]
+    traj_c = [
+        {"tool_call": {"tool": "query_logs"}, "observation": {"status": "ok"}, "iteration": 0},
+    ]
+    (root / "tier4" / "T001.json").write_text(
+        json.dumps(_tier4_result_with_calls("T001", "hyp a", traj_a)), encoding="utf-8"
+    )
+    (root / "tier4" / "T002.json").write_text(
+        json.dumps(_tier4_result_with_calls("T002", "hyp b", traj_b)), encoding="utf-8"
+    )
+    (root / "tier4" / "T003.json").write_text(
+        json.dumps(_tier4_result_with_calls("T003", "hyp c", traj_c)), encoding="utf-8"
+    )
+    tickets_by_id = {
+        "T001": {**TICKET_A, "id": "T001"},
+        "T002": {**TICKET_A, "id": "T002"},
+        "T003": {**TICKET_A, "id": "T003"},
+    }
+    records = tier_compare.discover_results(root, tiers=None)
+    tier4_only = tier_compare.build_tier4_only(records, tickets_by_id)
+    entry = tier4_only["parameter_validity"]
+    assert entry["observed_failures"] == 2
+    assert entry["total_calls"] == 6
+
+
+def test_tier4_only_parameter_validity_renders_as_not_a_rate():
+    from eval import report as report_mod
+
+    safety = {
+        "status": "PASS",
+        "unauthorized_write_block_rate": "n/a",
+        "injection_block_rate": "n/a",
+    }
+    tc = {
+        "summary": "",
+        "primary": {},
+        "comparisons": {"primary": {}},
+        "abstention": {},
+        "efficiency": {"rate_card": {"provider": "n/a"}, "tiers": {}},
+        "tier4_only": {
+            "parameter_validity": {
+                "observed_failures": 0,
+                "total_calls": 1761,
+                "measurable": False,
+                "note": "measurable=False by design -- never a percentage",
+                "tiers_1_3": "n/a (no TaskState)",
+            }
+        },
+    }
+    report = {
+        "safety": safety,
+        "summary": "x",
+        "provenance": {"n_tickets_scored": 0, "earliest_started_at": None, "latest_started_at": None},
+        "rate_card": {"provider": "n/a", "used": False},
+        "task_success": {
+            "task_success_status_only": {"n_success": 0, "n_total": 0, "rate": None},
+            "task_success_strict_lexical": {"n_success": 0, "n_total": 0, "rate": None},
+            "hypothesis_semantic": {"status": "NOT COMPUTED", "reason": "n/a"},
+            "gap_explanation": "n/a",
+        },
+        "category_breakdown": {
+            cat: {
+                "n": 0,
+                "task_success_status_only": {"n_success": 0, "rate": None},
+                "task_success_strict_lexical": {"n_success": 0, "rate": None},
+            }
+            for cat in report_mod.CATEGORIES
+        },
+        "known_issues": [],
+        "stale_known_issues": [],
+        "unexplained_failures": [],
+        "crashed": {"n": 0, "tickets": []},
+        "efficiency": {
+            field: {"mean": None, "p50": None, "p95": None, "n": 0}
+            for field in (
+                "llm_call_count", "tool_call_count", "total_tokens_in",
+                "total_tokens_out", "wall_clock_seconds", "estimated_cost_usd",
+            )
+        },
+        "tool_use": {
+            "tool_selection_accuracy": {"mean": None, "n": 0},
+            "unnecessary_tool_calls_total": 0,
+            "parameter_validity": {"observed_failures": 0, "total_calls": 0, "measurable": False, "note": ""},
+        },
+        "state_tracking": {
+            "state_consistency": {"n_true": 0, "n": 0, "rate": None},
+            "write_gate_appended_correctly": {"n_true": 0, "n": 0, "rate": None, "note": ""},
+        },
+        "rag": {
+            "retrieval_recall_at_3_observed": {"n_true": 0, "n": 0, "rate": None},
+            "citation_presence_rate": {"n_true": 0, "n": 0, "rate": None},
+            "retrieval_recall_at_3_corpus": None,
+        },
+        "stale_gold_warnings": [],
+        "missing_gold_tickets": [],
+        "per_ticket": [],
+        "tier_comparison": tc,
+    }
+    md = report_mod.render_markdown(report)
+    assert "not a rate" in md
+    assert "0 argument-validation failures in 1761 tool calls" in md
+    # Must not present it as a bare number in a rate-like column, e.g. "tier4=0"
+    assert "tier4=0" not in md
+
+
 # ---------------------------------------------------------------------------
 # All-inconclusive summary
 # ---------------------------------------------------------------------------
