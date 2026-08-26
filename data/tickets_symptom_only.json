@@ -391,7 +391,7 @@
   },
   {
     "id": "T027",
-    "ticket_text": "Search results are arriving noticeably slower this week, and an increasing share of them seem to require a fresh full lookup rather than a quick one, worsening across several hours.",
+    "ticket_text": "Search results are arriving noticeably slower this week, and the slowdown has been worsening across several hours.",
     "category": "multi_step",
     "gold_root_cause": "memory_cache_overgrowth",
     "gold_runbook_id": "RB-MEMORY-001.md",
@@ -436,7 +436,7 @@
   },
   {
     "id": "T030",
-    "ticket_text": "Support is getting a trickle of login complaints that seem random at first, clustering around specific times that line up with this week's key rotation.",
+    "ticket_text": "Support has been getting a scattered stream of login complaints since this week's key rotation; they seem random, with no clear pattern to when they happen.",
     "category": "multi_step",
     "gold_root_cause": "auth_signing_key_mismatch",
     "gold_runbook_id": "RB-AUTH-001.md",
@@ -706,7 +706,7 @@
   },
   {
     "id": "T048",
-    "ticket_text": "Backend workers are stalling one by one while waiting to talk to the database, even though the database itself reports healthy query times; each stalled worker seems to be waiting in line for a database handle that never frees up.",
+    "ticket_text": "Backend workers are stalling one by one, and the queue of unfinished requests keeps growing even though the database itself reports healthy query times.",
     "category": "rag_heavy",
     "gold_root_cause": "db_connection_pool_exhaustion",
     "gold_runbook_id": "RB-DB-001.md",
@@ -721,7 +721,7 @@
   },
   {
     "id": "T049",
-    "ticket_text": "The lookup service is answering requests noticeably slower today, and a growing share of reads are falling through to the primary store as if the fast layer in front of it has quietly filled up and started throwing things away.",
+    "ticket_text": "The lookup service is answering requests noticeably slower today, with response times that vary a lot depending on the request.",
     "category": "rag_heavy",
     "gold_root_cause": "memory_cache_overgrowth",
     "gold_runbook_id": "RB-MEMORY-001.md",
@@ -736,7 +736,7 @@
   },
   {
     "id": "T050",
-    "ticket_text": "Front-door traffic is getting cut off mid-handshake during the busiest part of the day, as if there simply isn't room to hold any more waiting visitors at the door even though nothing behind the door looks overloaded.",
+    "ticket_text": "Front-door traffic is getting cut off mid-handshake during the busiest part of the day, even though nothing behind the front door looks overloaded.",
     "category": "rag_heavy",
     "gold_root_cause": "network_ingress_queue_exhaustion",
     "gold_runbook_id": "RB-NETWORK-001.md",
@@ -751,7 +751,7 @@
   },
   {
     "id": "T051",
-    "ticket_text": "The newest release never quite comes online: the process is clearly running within seconds, but its startup check keeps failing right after boot, so the platform refuses to route traffic to it no matter how long everyone waits.",
+    "ticket_text": "The newest release never quite comes online: the process is clearly running within seconds, but the platform refuses to route traffic to it no matter how long everyone waits.",
     "category": "rag_heavy",
     "gold_root_cause": "deploy_healthcheck_misconfiguration",
     "gold_runbook_id": "RB-DEPLOY-001.md",
@@ -796,7 +796,7 @@
   },
   {
     "id": "T054",
-    "ticket_text": "The checkout flow keeps handing back errors during busy stretches, and every stalled request comes down to the same choke point: the database only allows a fixed number of simultaneous handles before making everyone else wait minutes for one to free up.",
+    "ticket_text": "The checkout flow keeps handing back errors during busy stretches, with stalled requests piling up and some users waiting minutes before getting an error.",
     "category": "rag_heavy",
     "gold_root_cause": "db_connection_pool_exhaustion",
     "gold_runbook_id": "RB-DB-001.md",
@@ -811,7 +811,7 @@
   },
   {
     "id": "T055",
-    "ticket_text": "The personalization feature has gotten sluggish and inconsistent across the past few hours, and it looks like the fast lookup layer supporting it has been quietly running out of room and shedding older entries to make space for new ones.",
+    "ticket_text": "The personalization feature has gotten sluggish and inconsistent across the past few hours, with responses varying between fast and noticeably slow.",
     "category": "rag_heavy",
     "gold_root_cause": "memory_cache_overgrowth",
     "gold_runbook_id": "RB-MEMORY-001.md",
