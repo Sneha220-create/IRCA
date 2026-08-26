@@ -65,10 +65,11 @@ def test_tier4_default_behaviour_unchanged(tmp_path, monkeypatch):
         "state",
         "pending_action",
         "usage",
+        "provenance",
     }
     assert result["tier"] == 4
     assert result["repeat"] == 0
-    assert result["schema_version"] == 4
+    assert result["schema_version"] == 5
     assert set(result["run"].keys()) == {
         "started_at",
         "wall_clock_seconds",
@@ -139,7 +140,7 @@ def test_tier_run_writes_result_without_state_or_pending_action(
     assert "pending_action" not in result
     assert result["tier"] == tier
     assert result["repeat"] == 0
-    assert result["schema_version"] == 4
+    assert result["schema_version"] == 5
     assert result["baseline"] == payload_fn("T001")
 
     if tier == 2:
@@ -378,3 +379,87 @@ def test_tickets_content_sha256_invariant_to_whitespace_and_key_order(tmp_path):
     pretty_path.write_text(json.dumps(tickets, indent=4, sort_keys=False), encoding="utf-8")
 
     assert run_benchmark.tickets_content_sha256(compact_path) == run_benchmark.tickets_content_sha256(pretty_path)
+
+
+# ---------------------------------------------------------------------------
+# Provenance: which model/provider/credential/commit produced a sweep.
+# ---------------------------------------------------------------------------
+def test_provenance_present_with_all_four_keys_and_schema5(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_benchmark.orchestrator, "run_agent_loop", lambda tid: _canned_state(tid))
+    monkeypatch.setenv("LLM_API_KEY", "fake-key-for-provenance-test-0123456789")
+
+    rc = run_benchmark.main(["--live", "--tickets", "T001", "--out", str(tmp_path)])
+    assert rc == 0
+
+    result = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
+    assert result["schema_version"] == 5
+    assert "provenance" in result
+    prov = result["provenance"]
+    assert set(prov.keys()) == {"llm_base_url", "llm_model", "llm_api_key_sha8", "git_commit"}
+
+
+def test_provenance_key_fingerprint_never_reveals_the_raw_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_benchmark.orchestrator, "run_agent_loop", lambda tid: _canned_state(tid))
+    fake_key = "sk-super-secret-fake-key-0123456789abcdef"
+    monkeypatch.setenv("LLM_API_KEY", fake_key)
+
+    rc = run_benchmark.main(["--live", "--tickets", "T001", "--out", str(tmp_path)])
+    assert rc == 0
+
+    raw_text = (tmp_path / "T001.json").read_text(encoding="utf-8")
+    assert fake_key not in raw_text
+    assert fake_key[:12] not in raw_text
+
+    result = json.loads(raw_text)
+    key_sha8 = result["provenance"]["llm_api_key_sha8"]
+    assert isinstance(key_sha8, str)
+    assert len(key_sha8) == 8
+    assert key_sha8 == key_sha8.lower()
+    assert all(c in "0123456789abcdef" for c in key_sha8)
+    assert key_sha8 != fake_key
+    assert key_sha8 not in fake_key
+    assert fake_key not in key_sha8
+
+
+def test_provenance_no_key_set_gives_none_without_crashing(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_benchmark.orchestrator, "run_agent_loop", lambda tid: _canned_state(tid))
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    rc = run_benchmark.main(["--live", "--tickets", "T001", "--out", str(tmp_path)])
+    assert rc == 0
+
+    result = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
+    assert result["provenance"]["llm_api_key_sha8"] is None
+
+
+def test_provenance_git_unavailable_gives_none_without_crashing(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_benchmark.orchestrator, "run_agent_loop", lambda tid: _canned_state(tid))
+
+    def _raise(*args, **kwargs):
+        raise FileNotFoundError("git not found")
+
+    monkeypatch.setattr(run_benchmark.subprocess, "run", _raise)
+
+    rc = run_benchmark.main(["--live", "--tickets", "T001", "--out", str(tmp_path)])
+    assert rc == 0
+
+    result = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
+    assert result["provenance"]["git_commit"] is None
+
+
+def test_run_one_direct_call_defaults_provenance_to_none(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_benchmark.orchestrator, "run_agent_loop", lambda tid: _canned_state(tid))
+    ticket = {
+        "id": "T001",
+        "category": "easy",
+        "gold_root_cause": "x",
+        "gold_runbook_id": "RB-1",
+        "required_tools": [],
+        "expected_behavior": "resolve",
+        "min_confidence_evidence_sources": 1,
+    }
+    result = run_benchmark.run_one(ticket, tmp_path, tier=4)
+    assert result is not None
+    written = json.loads((tmp_path / "T001.json").read_text(encoding="utf-8"))
+    assert written["provenance"] is None

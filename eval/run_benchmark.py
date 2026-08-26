@@ -88,6 +88,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 import traceback
@@ -96,6 +97,7 @@ from pathlib import Path
 
 import agent.approval as approval
 import agent.baselines as baselines
+import agent.llm as llm
 import agent.orchestrator as orchestrator
 import agent.single_pass as single_pass
 from tools.fake_data import TICKETS_PATH_ENV, resolve_tickets_path
@@ -216,6 +218,62 @@ def _usage_shim(module=orchestrator):
         module.call_llm_with_tools = real_fn
 
 
+def _resolve_provenance() -> dict:
+    """Snapshot which LLM provider/model/credential and code revision a
+    sweep is about to run under, so two sweeps' results can be compared
+    without a silent mismatch (e.g. an API credential rotated mid-project,
+    previously only detectable via file mtime -- see this function's
+    call site in main(), computed once per sweep, not once per ticket).
+
+    llm_base_url / llm_model are resolved exactly the way agent/llm.py
+    resolves them (agent/llm.py is the source of truth): LLM_BASE_URL /
+    LLM_MODEL env vars, falling back to agent.llm's DEFAULT_BASE_URL /
+    MODEL. agent.llm.MODEL is read directly since it is itself already
+    resolved from LLM_MODEL at import time with DEFAULT_MODEL as fallback.
+
+    llm_api_key_sha8 is a truncated one-way fingerprint (first 8 hex chars
+    of sha256) of whichever key agent/llm.py would actually select
+    (LLM_API_KEY, else GROQ_API_KEY -- same precedence as
+    agent.llm._get_client). This exists ONLY to detect a CHANGE of
+    credential across sweeps, never to identify or verify the credential
+    itself -- the hash is deliberately truncated so it can never be used
+    to check a candidate key by re-hashing it. None if no key is set.
+
+    git_commit is the current HEAD short sha, or None if git is
+    unavailable or the call fails for any reason -- this must never raise
+    or hang a sweep.
+    """
+    base_url = os.environ.get("LLM_BASE_URL", llm.DEFAULT_BASE_URL).strip()
+    model = llm.MODEL
+
+    key = (
+        os.environ.get("LLM_API_KEY", "").strip()
+        or os.environ.get("GROQ_API_KEY", "").strip()
+    )
+    key_sha8 = hashlib.sha256(key.encode("utf-8")).hexdigest()[:8] if key else None
+
+    git_commit = None
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if proc.returncode == 0:
+            git_commit = proc.stdout.strip() or None
+    except Exception:
+        git_commit = None
+
+    return {
+        "llm_base_url": base_url,
+        "llm_model": model,
+        "llm_api_key_sha8": key_sha8,
+        "git_commit": git_commit,
+    }
+
+
 def _load_tickets() -> list[dict]:
     return json.loads(resolve_tickets_path().read_text(encoding="utf-8"))
 
@@ -297,6 +355,7 @@ def run_one(
     repeat: int = 0,
     tickets_path: str | None = None,
     tickets_sha256: str | None = None,
+    provenance: dict | None = None,
 ) -> dict:
     """Run a single ticket through the given capability tier, write its
     result file, and return a small summary dict used for the stderr
@@ -345,7 +404,7 @@ def run_one(
         wall_clock_seconds = round(time.perf_counter() - start, 3)
 
         result = {
-            "schema_version": 4,
+            "schema_version": 5,
             "tier": tier,
             "repeat": repeat,
             "ticket_id": ticket_id,
@@ -363,6 +422,10 @@ def run_one(
             # no_secret_leak check, which must not conflate the two.
             "pending_action": pending_action_dump,
             "usage": usage,
+            # None when the caller didn't pass one (e.g. a direct run_one()
+            # call in a test) -- see _resolve_provenance() for what's captured
+            # and why.
+            "provenance": provenance,
         }
 
         if runner_error is not None:
@@ -391,7 +454,7 @@ def run_one(
         wall_clock_seconds = round(time.perf_counter() - start, 3)
 
         result = {
-            "schema_version": 4,
+            "schema_version": 5,
             "tier": tier,
             "repeat": repeat,
             "ticket_id": ticket_id,
@@ -405,6 +468,10 @@ def run_one(
             "ticket": _denormalized_ticket(ticket),
             "baseline": baseline_dump,
             "usage": usage,
+            # None when the caller didn't pass one (e.g. a direct run_one()
+            # call in a test) -- see _resolve_provenance() for what's captured
+            # and why.
+            "provenance": provenance,
         }
 
         final_status = "crashed" if runner_error is not None else "answered"
@@ -636,6 +703,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 2
 
+    provenance = _resolve_provenance()
+
     total = len(selected)
     n_crashed = 0
     overall_start = time.perf_counter()
@@ -648,6 +717,7 @@ def main(argv: list[str] | None = None) -> int:
             repeat=args.repeat,
             tickets_path=str(resolved_tickets_path),
             tickets_sha256=tickets_sha256,
+            provenance=provenance,
         )
         status = summary["status"]
         crashed_note = " (crashed)" if summary["crashed"] else ""
