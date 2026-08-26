@@ -1012,3 +1012,85 @@ record, an independent check that the arithmetic is right this time.
       that any claim the memory layer improves resolution must be checked against actual usage
       rate rather than assumed; a later reader must not over-correct and throw out the calibration
       work. Open question, not tuned away
+
+## Session 11 — the 1→4 tier comparison, and the benchmark defect it exposed
+
+Built the four-tier comparison docs/design.md calls "the single most convincing
+artifact in the whole project", ran it, found it proved the opposite of what was
+expected, diagnosed why, fixed the cause, and re-ran it.
+
+- [x] Step 0 scoring basis settled IN WRITING before any code (docs/decisions.md J1-J3).
+      Primary = rubric-v3 clause (a) semantic_match only, over the 53 non-ambiguous
+      tickets — the only metric computable identically for all four tiers. The full v3
+      verdict was rejected as primary because clause (b) needs observed tool output,
+      which tiers 1-2 structurally cannot have; strict_lexical was rejected because it
+      scores 13/63 on tier 4 itself and would compress every tier toward the floor
+- [x] Judge blinded: clause-(a)-only prompt, no observations block, byte-identical
+      across tiers for identical candidate text
+- [x] Abstention scored on PROSE for all four tiers, tier 4 included — never on
+      state.status == "escalated". Decided in J2 before any number existed; vindicated
+      in J8 below
+- [x] Decision rule fixed in advance (J3): a gain is claimed only when repeat ranges do
+      not overlap; otherwise "inconclusive at this sample size"
+- [x] agent/baselines.py — tier 1 (plain LLM) and tier 2 (LLM+RAG, real retriever at the
+      real 0.5 threshold). eval/run_benchmark.py gained --tier/--repeat, default 4 so
+      every existing invocation is unchanged. eval/tier_compare.py scores and compares
+- [x] FIRST RUN, leaked benchmark: 756 runs, 0 crashes. Tier 4 ahead in ZERO of 18 cells,
+      another tier ahead in 8, 10 inconclusive. tier 1 96.2, tier 2 100.0, tier 3 94.3,
+      tier 4 94.3. Tier 4 cost 17.7x more and ran 10.5x slower than tier 2, which beat it
+      on every primary cell
+- [x] DIAGNOSED, not explained away: the benchmark leaked. eval/leakage_audit.py measures
+      it — 49 of 53 tickets (92.45%) solved by a plain LLM with no tools and no retrieval
+      in 3 of 3 repeats, from ticket text alone. 48 of 53 share vocabulary with their own
+      gold slug. T006 handed over "connection pool timeout errors ... the pool nearly
+      full" for gold db_connection_pool_exhaustion, while tools/fake_data.py already
+      carried the same signal. Nothing was left for tools, RAG or replanning to discover
+- [x] CONSEQUENCE, recorded rather than buried: task_success_status_only's 59/63 was never
+      evidence the loop performed the diagnosis, because the diagnosis was in the input
+- [x] Rewrite criterion PREREGISTERED before a single ticket was edited (J5/J6), including
+      the disclosure that the rewrite happened after observing tier 1 at 96.2%
+- [x] data/tickets_symptom_only.json — 53 ticket_texts rewritten to report the COMPLAINT,
+      not the INVESTIGATION. Gold labels, fake_data signatures, tools and agent/ untouched.
+      eval/validate_tickets.py enforces it mechanically (S1-S3 structural, L1/L2 no gold or
+      metric vocabulary, L3 no telemetry vocabulary, D1 derivability, W1/W2 sanity)
+- [x] L3 exists because the FIRST rewrite passed L1/L2 and still failed completely —
+      it swapped synonyms while keeping the diagnosis ("Container logs stopped being
+      trimmed" for disk_log_rotation_gap). L3 caught 37 of 53 tickets in that draft
+- [x] D1/W2 made DIFFERENTIAL after absolute versions failed on the unmodified baseline
+      for the whole deploy_healthcheck_misconfiguration cluster — a lexical false alarm.
+      A check that fails identically on the baseline says nothing about a rewrite
+- [x] Preregistered check PASSED: tier 1 fell 96.2 -> 56.6, then 49.1 after 8 residual
+      tickets were fixed
+- [x] SECOND RUN, symptom-only benchmark: 756 runs, 0 crashes, 0 failed LLM calls, $1.17
+      tier 1  49.1 [49.1-52.8]      (leaked 96.2, delta -47.1)
+      tier 2  66.0 [64.2-66.0]      (leaked 100.0, delta -34.0)
+      tier 3  92.5 [92.5-98.1]      (leaked 94.3, delta -1.8)
+      tier 4  90.6 [86.8-92.5]      (leaked 94.3, delta -3.7)
+      Tier 4 now ahead in 9 of 18 cells. TOOLS are worth +43.4 points over a plain LLM;
+      retrieval alone +16.9. The deltas isolate the leak: text-dependent tiers collapse,
+      evidence-gathering tiers barely move
+- [x] NOT CLAIMED, per J3: every tier-3-vs-tier-4 cell is INCONCLUSIVE, with tier 3's
+      median above tier 4's. The agentic loop's marginal value over a single tool
+      round-trip is unproven at n=3, at 5.9x the cost per ticket and 9.3 LLM calls
+      versus 2. Resolving it needs ~10 repeats per tier (~$10)
+- [ ] NEW OPEN FINDING (J8): tier 4's escalation STATUS and its PROSE disagree. It
+      escalated 30/30 ambiguous tickets correctly (correct_escalation 1.0,
+      task_success_status_only 96.3%) yet scored 0% abstention across all three repeats,
+      because its free-text hypothesis still asserts a confident cause. A human reading
+      the answer cannot tell it declined. Tiers 2 and 3 abstain in prose 30-40% of the
+      time and win both abstention cells outright. This is a write-up defect in the
+      loop's escalation path, invisible on the leaked benchmark. Not fixed here
+- [ ] NEW OPEN FINDING: eval/metrics.py parameter_validity reports exactly 0 on both
+      runs. Looks like metric plumbing, not a result — do not quote it until checked
+- [x] Harness bugs found by real data and fixed: the blinding guard aborted on
+      legitimate IT vocabulary ("In Kubernetes (or similar orchestrators)"); the judge
+      cache saved only at the end, losing all paid calls on an interrupt; tickets_sha256
+      hashed raw bytes so the same set hashed differently on Windows vs Linux
+- [x] A 756-run sweep completed reporting "0 crashed" twelve times while EVERY LLM call
+      returned 403 (credential revoked mid-session). agent/llm.py returns an error DICT
+      rather than raising, so nothing fired. Sweeps now record usage.failed_calls and
+      abort with exit 3 after 3 consecutive fully-failed tickets, naming the written
+      files as INVALID. Result files also now record provenance (provider, model,
+      truncated key fingerprint, git commit) so two sweeps can never be silently
+      incomparable
+- [x] Decisions + rejected alternatives recorded in docs/decisions.md (J1-J9)
