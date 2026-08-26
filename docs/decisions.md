@@ -955,3 +955,39 @@ the SAME symptom and are separable only by evidence the tools return.
 That is what would force a tier to investigate rather than pattern-match,
 and it is the only change that would let the tier-3-vs-tier-4 question
 (J7, currently inconclusive) actually be answered.
+
+**J12. PREREGISTERED before repeats 3-4 are run: how the tier-3 vs tier-4
+question gets answered at n=5, and what would count as an answer.**
+Decision: J7 left all five tier-3-vs-tier-4 cells inconclusive under J3's
+min/max non-overlap rule. Two more repeats of tiers 3 and 4 only are being
+run (tiers 1-2 are not re-run; they are not part of this question and
+their 3-repeat numbers stand).
+J3's min/max rule is KEPT as the headline claim rule, but it is a weak
+instrument here and is not expected to resolve this: observed min/max
+ranges tend to WIDEN as repeats are added, so non-overlap can become less
+likely with more data, not more. It is reported for continuity with the
+existing table, not as the primary analysis.
+The PRIMARY analysis for this specific question is PAIRED, declared here
+before the new data exists, because both tiers run the identical tickets
+and a paired test is far more powerful than comparing two independent
+aggregates:
+  - McNemar exact two-sided over discordant (tier3-correct, tier4-wrong)
+    vs (tier4-correct, tier3-wrong) pairs.
+  - Reported at BOTH the ticket-repeat unit AND the ticket unit. The
+    ticket-repeat unit overstates n, because the same 53 tickets are
+    repeated and repeats of one ticket are not independent observations;
+    the ticket-level figure is the conservative one and is the one to
+    quote.
+  - Significance threshold p < 0.05, fixed now.
+On the existing 3 repeats the paired split is 13 (tier 3 only) vs 6
+(tier 4 only), 19 discordant of 159 ticket-repeat units, p = 0.167 --
+direction favouring tier 3, not significant. Extrapolating that split to
+~32 discordant pairs at n=5 lands near p = 0.06-0.10, so this is recorded
+IN ADVANCE: n=5 is likely to tighten the estimate without reaching the
+threshold. If it does not reach p < 0.05, the answer is still
+"indistinguishable", and that will be reported as such rather than as a
+tier-4 win or a tier-3 win.
+Rejected: dropping the min/max rule now that it is inconvenient, and
+switching to whichever test happens to produce a verdict after seeing the
+data. Both tests are named here, before the run, with their units and
+threshold.
