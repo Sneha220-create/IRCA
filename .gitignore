@@ -47,3 +47,8 @@ eval/results/.ckpt_*.jsonl
 # and IS tracked, exactly as report.json is.
 eval/results/tier_compare/
 eval/results/tier_compare_pilot/
+
+# Symptom-only re-run raw output (Session 11 phase 4d). Same class as the
+# tier_compare dirs above: bulky, regenerable. The scored summary lives at
+# eval/results/tier_compare_symptom_only.json and IS tracked.
+eval/results/symptom_only/

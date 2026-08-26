@@ -839,3 +839,62 @@ patterns and metric name before any sweep is paid for. T008 is the register
 to aim at: it states symptoms without settling whether the application is
 broken or the readiness probe is misconfigured, remains solvable from logs,
 and is the one ticket tier 2 resolves via retrieval every time.
+
+**J7. On a leak-free benchmark, TOOLS are what earn the gain; the agentic
+LOOP is not distinguishable from a single tool pass at n=3.**
+Decision: recorded as measured, against the project's own expectation.
+Rerunning the identical 4-tier harness on the symptom-only tickets (756
+runs, 0 crashes, same Baseten endpoint and model as the leaked run):
+  tier 1 plain LLM        49.1 [49.1-52.8]
+  tier 2 LLM+RAG          66.0 [64.2-66.0]
+  tier 3 single-pass tools 92.5 [92.5-98.1]
+  tier 4 full agent loop  90.6 [86.8-92.5]
+Tier 4 is ahead in 9 of 18 cells (it was ahead in ZERO on the leaked set),
+another tier is ahead in 2, and 7 are inconclusive. Tools are worth +43.4
+points over the plain LLM; retrieval alone is worth +16.9.
+
+But EVERY tier-3-vs-tier-4 cell is inconclusive -- all five ranges
+overlap, with tier 3's median ABOVE tier 4's. Per J3 no gain is claimed:
+replanning, verification and iteration cannot be distinguished from one
+tool round-trip at this sample size, while costing 5.9x more per ticket
+($0.0046 vs $0.0008) and 9.3 LLM calls versus 2. Separating them would
+take roughly 10 repeats per tier (~$10). This is NOT a finding that tier 3
+beats tier 4; it is a finding that the loop's marginal value over
+single-pass tool use is unproven on this benchmark.
+
+The leaked-vs-clean deltas are the artifact, because they isolate the
+leak: tier 1 -47.1, tier 2 -34.0, tier 3 -1.8, tier 4 -3.7. The tiers that
+read the answer off the ticket collapse; the tiers that gather evidence
+barely move.
+
+**J8. Tier 4's escalation status and its prose hypothesis disagree, and
+only a leak-free benchmark made that visible.**
+Decision: logged as a real defect, not tuned away here. Tier 4 escalated
+30 of 30 ambiguous tickets (correct_escalation = 1.0, task_success_
+status_only 96.3%) yet scored 0% abstention across all three repeats,
+because its free-text `hypothesis` still asserts a confident cause. A
+human reading the agent's answer cannot tell it declined; only the
+machine-readable status says so. Tiers 2 and 3 abstain in prose 30-40% of
+the time and win those two cells outright.
+Rejected: scoring tier 4's abstention from `state.status`, which would
+have hidden this entirely (see J2 -- that was ruled out before any number
+existed, and this is the vindication of that call). Also rejected:
+treating it as a scoring artifact -- the state is right and the text is
+wrong, which is a write-up defect in the loop's escalation path and is
+worth fixing on its own merits.
+
+**J9. Stopping rule for the rewrite: the ticket must not CONTAIN the
+answer; it need not make the answer unguessable.**
+Decision: the symptom-only rewrite was iterated against TIER 1 only,
+which is the leak detector and is blind to tier 4. After the first pass
+25 of 53 tickets were still solved 3/3 from text alone; 8 of those still
+restated the mechanism in plainer words ("waiting in line for a database
+handle that never frees up") and were rewritten. The other 17 were left
+alone deliberately.
+Rejected: driving the tool-less score toward zero. T001 ("Checkout API
+returning intermittent 500s for about 5% of requests after peak traffic
+starts at 10:00 AM, clears up once traffic falls off") names no
+mechanism; a competent engineer guesses connection-pool exhaustion from a
+good prior. Stripping that would produce tickets that are uninformative
+rather than harder, and would be tuning the benchmark rather than fixing
+it. Tier 1 landing at 49.1% -- not 0% -- is the intended outcome.
