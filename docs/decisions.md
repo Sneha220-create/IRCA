@@ -753,3 +753,89 @@ the attack. Also rejected: re-rolling T072 until a run happened to call the
 tool — measuring until the number looks right is the same error this log warns
 about with the 46-ticket gap, and would have hidden the finding recorded in
 PROGRESS.md.
+
+---
+
+## J. Benchmark leakage and the symptom-only rewrite (Session 11)
+
+**J1. The primary metric for the 1->4 tier comparison is rubric-v3 clause (a)
+`semantic_match` alone, scored over the 53 non-ambiguous tickets.**
+Decision: tiers 1-3 return prose; only tier 4 produces a TaskState. Every
+state, safety and loop metric — including the `task_success_status_only`
+headline — is therefore structurally uncomputable for tiers 1-3, so scoring
+the comparison on any of them would make tier 4 win by construction rather
+than by capability. Clause (a) needs only ticket text, candidate answer and
+gold slug, which all four tiers produce identically.
+Rejected: the full v3 verdict (`semantic_match AND evidence_supported`).
+Clause (b) requires evidence the system actually observed in tool output;
+tiers 1 and 2 have no tools, so it scores them 0 by definition. Also
+rejected: `task_success_strict_lexical`, which scores 13/63 (20.6%) on tier 4
+itself for documented vocabulary reasons and would compress every tier toward
+the floor, hiding exactly the differences the table exists to show.
+
+**J2. Abstention is scored on prose for every tier, including tier 4 — never
+on `state.status == "escalated"`.**
+Decision: the 10 ambiguous tickets expect escalation as the correct answer,
+but tiers 1-3 have no escalation mechanism. They are judged on whether their
+answer declines to name a cause and says the evidence is insufficient, which
+a plain LLM can do. Tier 4 is judged by the same prose criterion so it gains
+no structural advantage from a capability the others were never given, and
+the ambiguous tickets are excluded from the primary denominator entirely.
+Rejected: scoring tiers 1-3 as failures for not escalating — that punishes
+them for a missing capability rather than measuring behaviour.
+
+**J3. A tier-4 gain is claimed only when repeat ranges do not overlap.**
+Decision: fixed before any number existed, because Session 10 showed 59/63
+holding constant while the failure set turned over almost completely. With 3
+repeats per tier, a cell reports `tier4_ahead` only if tier 4's min exceeds
+the other tier's max, `other_ahead` plainly in the reverse case, and
+`inconclusive at this sample size` otherwise. An honest inconclusive is a
+better artifact than an overstated table.
+Outcome: of 18 cells, tier 4 was ahead in ZERO, another tier ahead in 8, and
+10 inconclusive.
+
+**J4. The benchmark leaks: 49 of 53 tickets (92.45%) are solved by a plain
+LLM from ticket text alone, in 3 of 3 repeats.**
+Decision: recorded as a defect of the ticket set, not of the agent.
+`eval/leakage_audit.py` measures it empirically (tier-1 success rate per
+ticket) with lexical overlap as supporting evidence; 48 of 53 tickets share
+vocabulary with their own gold slug, and 5 more leak semantically with no
+shared token. `tools/fake_data.py` already carries the same signal in its log
+patterns and metric names, so the ticket text duplicates the evidence the
+tools exist to retrieve. Nothing is left for tools, RAG or replanning to
+discover, and extra machinery can only add failure modes — which is what tier
+4's stable 90.0 [90-90] on tool_heavy is, with T011 failing in all three
+tier-4 repeats and never failing for any other tier.
+Consequence: `task_success_status_only`'s 59/63 was never evidence that the
+loop performed the diagnosis, because the diagnosis was in the input.
+
+**J5. PREREGISTERED, before the rewrite is written or run: the symptom-only
+rewrite succeeds if tier 1's primary rate drops substantially, and that
+criterion is fixed here so it cannot be retrofitted.**
+Decision: only `ticket_text` is rewritten. Gold labels, `tools/fake_data.py`
+signatures, the tool layer and everything under `agent/` are untouched, so
+the re-run stays comparable to the numbers already recorded. The rewrite is
+mechanical and blind to per-tier outcomes: remove phrases naming the
+mechanism, keep the observable symptom. Both ticket sets are kept — the
+leaked-vs-clean pair is itself the artifact, since it shows the same agent
+and the same code yielding opposite conclusions on two benchmarks.
+Rejected: rewriting tickets while watching tier 4's score. Tuning a benchmark
+until one's own system wins proves nothing, and it is the same error this log
+warns about at I2 ("measuring until the number looks right"). Also rejected:
+silently replacing `data/tickets.json`, which would invalidate every result
+committed before this point.
+Disclosure required in any writeup: the tickets were rewritten AFTER tier 1
+was observed scoring 96.2%. The leak is a real defect regardless of when it
+was found, but the sequence must be stated, along with the fact that the
+rewrite was blind to per-tier outcomes.
+
+**J6. A rewritten ticket must keep its gold cause derivable from its
+`fake_data` signature, and must not silently become an escalate ticket.**
+Decision: over-redaction is the live risk — strip too much and the correct
+behaviour becomes escalation, converting a `resolve_with_approval` ticket
+into an ambiguous one and corrupting `expected_behavior` without touching the
+field. Every rewritten ticket is validated against its own signature's log
+patterns and metric name before any sweep is paid for. T008 is the register
+to aim at: it states symptoms without settling whether the application is
+broken or the readiness probe is misconfigured, remains solvable from logs,
+and is the one ticket tier 2 resolves via retrieval every time.
