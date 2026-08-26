@@ -991,3 +991,44 @@ Rejected: dropping the min/max rule now that it is inconvenient, and
 switching to whichever test happens to produce a verdict after seeing the
 data. Both tests are named here, before the run, with their units and
 threshold.
+
+**J13. ANSWERS J7 at n=5: tier 3 and tier 4 are statistically
+indistinguishable, and more repeats will not change that.**
+Decision: reporting the preregistered J12 analysis as specified.
+630 runs (315 per tier, 5 repeats x 63), 0 crashes, $0.68.
+  tier 3 single-pass  94.3 [92.5-98.1]  pooled 250/265  Wilson [90.9, 96.5]
+  tier 4 full loop    92.5 [86.8-94.3]  pooled 242/265  Wilson [87.3, 94.1]
+J3's min/max rule: all five cells STILL inconclusive -- and it behaved
+exactly as J12 warned. Tier 4's observed range WIDENED with more data
+([86.8-92.5] -> [86.8-94.3]) rather than tightening, confirming that
+min/max non-overlap is not a consistent instrument and should not be the
+primary test for a question like this.
+Paired McNemar exact, as preregistered:
+  ticket-repeat unit (n=265): 18 tier3-only vs 10 tier4-only, p = 0.185
+  TICKET unit (n=53, quote this): 8 favour tier 3, 6 favour tier 4,
+                                  p = 0.791
+Both far above the p < 0.05 threshold fixed in J12. The answer is
+INDISTINGUISHABLE -- not a tier-3 win. J12 predicted p = 0.06-0.10 at the
+ticket-repeat level; the actual 0.185 was worse, and the direction
+weakened with more data (13:6 at n=3 -> 18:10 at n=5). Recording that the
+prediction was optimistic.
+The ticket-repeat split looks more lopsided than the ticket split only
+because repeats of one ticket are not independent: T003, T011, T034 and
+T050 each beat tier 4 in every one of their discordant repeats, so a
+single hard ticket contributes three apparent "wins".
+The disagreements are ticket-specific and stable, not random. Tier 3
+reliably wins T003, T011, T034, T050. Tier 4 reliably wins T008 (3 of 3)
+and T044 (2 of 2). T008 is the one genuinely non-leaky ticket in the
+corpus (J4) and the loop wins it every time -- the most encouraging
+single signal for tier 4 in the whole comparison, and one data point, not
+a result.
+Consequence: MORE REPEATS ARE NOT THE ANSWER. Discordance is ~11% and
+near 50/50 at ticket level; significance would require a larger TICKET
+corpus, not more repetitions of the same 53. This closes J7 and points
+back at J11 -- confusable pairs (identical symptoms, different causes,
+separable only on tool evidence) are what would generate discordance the
+loop can win, with T008 as the existence proof that such tickets separate
+the tiers.
+Rejected: running n=7 or n=10. The n=3 -> n=5 step moved p in the WRONG
+direction; spending more on repeats would be measuring until the number
+looks right, which this log warns against at I2 and J5.
