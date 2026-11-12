@@ -214,7 +214,7 @@
       "gold_root_cause": "network_ingress_queue_exhaustion",
       "hypothesis": "Ingress is failing to establish upstream connections during peak traffic, resulting in upstream connect errors and mid\u2011handshake drops due to connection\u2011queue saturation and upstream connection exhaustion",
       "ticket_text": "Front-door traffic is getting cut off mid-handshake during the busiest part of the day, as if there simply isn't room to hold any more waiting visitors at the door even though nothing behind the door looks overloaded.",
-      "semantically_correct": false,
+      "semantically_correct": true,
       "notes": ""
     },
     {
